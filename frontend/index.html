@@ -653,6 +653,21 @@
     </div>
 </div>
 
+<!-- Analytics Drill-Down Modal -->
+<div id="analyticsDrillModal" class="analytics-drill-modal hidden">
+    <div class="analytics-drill-backdrop" id="analyticsDrillBackdrop"></div>
+    <div class="analytics-drill-content">
+        <div class="analytics-drill-header">
+            <h3 id="analyticsDrillTitle">Orders</h3>
+            <div class="analytics-drill-summary" id="analyticsDrillSummary"></div>
+            <button class="analytics-drill-close" id="analyticsDrillClose">&times;</button>
+        </div>
+        <div class="analytics-drill-body" id="analyticsDrillBody">
+            <div class="analytics-loading"><div class="spinner"></div><div>Loading...</div></div>
+        </div>
+    </div>
+</div>
+
 <!-- Chart.js CDN for Analytics -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <!-- ⭐ LOAD I18N FIRST -->

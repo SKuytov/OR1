@@ -16,5 +16,6 @@ router.get('/supplier-performance', authenticateToken, analyticsController.getSu
 router.get('/monthly-orders-count', authenticateToken, analyticsController.getMonthlyOrdersCount);
 router.get('/approval-stats', authenticateToken, analyticsController.getApprovalStats);
 router.get('/top-parts', authenticateToken, analyticsController.getTopParts);
+router.get('/drill-down', authenticateToken, analyticsController.getDrillDown);
 
 module.exports = router;

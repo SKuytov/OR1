@@ -2,19 +2,31 @@
 const db = require('../config/database');
 
 // Helper: build date filter clause
-function buildDateFilter(months, dateColumn = 'submission_date') {
-    if (!months) return { clause: '', params: [] };
-    return {
-        clause: ` AND ${dateColumn} >= DATE_SUB(NOW(), INTERVAL ? MONTH)`,
-        params: [parseInt(months)]
-    };
+function buildDateFilter(query, dateColumn = 'submission_date') {
+    const { months, dateFrom, dateTo } = query;
+    const clauses = [];
+    const params = [];
+
+    if (dateFrom) {
+        clauses.push(` AND ${dateColumn} >= ?`);
+        params.push(dateFrom);
+    }
+    if (dateTo) {
+        clauses.push(` AND ${dateColumn} <= ?`);
+        params.push(dateTo + ' 23:59:59');
+    }
+    if (!dateFrom && !dateTo && months) {
+        clauses.push(` AND ${dateColumn} >= DATE_SUB(NOW(), INTERVAL ? MONTH)`);
+        params.push(parseInt(months));
+    }
+
+    return { clause: clauses.join(''), params };
 }
 
 // GET /api/analytics/summary
 exports.getSummary = async (req, res) => {
     try {
-        const { months } = req.query;
-        const df = buildDateFilter(months);
+        const df = buildDateFilter(req.query);
 
         const [[totalRow]] = await db.query(
             `SELECT
@@ -76,17 +88,26 @@ exports.getSummary = async (req, res) => {
 // GET /api/analytics/spend-over-time?months=12
 exports.getSpendOverTime = async (req, res) => {
     try {
-        const months = parseInt(req.query.months) || 12;
+        const df = buildDateFilter(req.query);
+        const hasDateFilter = df.clause.length > 0;
+        let whereClause = 'WHERE submission_date IS NOT NULL';
+        let queryParams;
+        if (hasDateFilter) {
+            whereClause += df.clause;
+            queryParams = df.params;
+        } else {
+            whereClause += ' AND submission_date >= DATE_SUB(NOW(), INTERVAL ? MONTH)';
+            queryParams = [12];
+        }
         const [rows] = await db.query(
             `SELECT DATE_FORMAT(submission_date, '%Y-%m') AS period,
                 COALESCE(SUM(CASE WHEN total_price > 0 THEN total_price ELSE 0 END), 0) AS total,
                 COUNT(*) AS count
             FROM orders
-            WHERE submission_date IS NOT NULL
-                AND submission_date >= DATE_SUB(NOW(), INTERVAL ? MONTH)
+            ${whereClause}
             GROUP BY period
             ORDER BY period`,
-            [months]
+            queryParams
         );
         res.json(rows.map(r => ({ period: r.period, total: parseFloat(r.total), count: r.count })));
     } catch (error) {
@@ -98,8 +119,7 @@ exports.getSpendOverTime = async (req, res) => {
 // GET /api/analytics/spend-by-building
 exports.getSpendByBuilding = async (req, res) => {
     try {
-        const { months } = req.query;
-        const df = buildDateFilter(months);
+        const df = buildDateFilter(req.query);
         const [rows] = await db.query(
             `SELECT
                 COALESCE(o.building, 'Unknown') AS building,
@@ -131,8 +151,7 @@ exports.getSpendByBuilding = async (req, res) => {
 exports.getSpendBySupplier = async (req, res) => {
     try {
         const limit = parseInt(req.query.limit) || 10;
-        const { months } = req.query;
-        const df = buildDateFilter(months);
+        const df = buildDateFilter(req.query);
         const [rows] = await db.query(
             `SELECT
                 o.supplier_id AS supplierId,
@@ -164,8 +183,7 @@ exports.getSpendBySupplier = async (req, res) => {
 // GET /api/analytics/spend-by-category
 exports.getSpendByCategory = async (req, res) => {
     try {
-        const { months } = req.query;
-        const df = buildDateFilter(months);
+        const df = buildDateFilter(req.query);
         const [rows] = await db.query(
             `SELECT
                 COALESCE(NULLIF(TRIM(category), ''), 'Uncategorized') AS category,
@@ -193,8 +211,7 @@ exports.getSpendByCategory = async (req, res) => {
 // GET /api/analytics/spend-by-cost-center
 exports.getSpendByCostCenter = async (req, res) => {
     try {
-        const { months } = req.query;
-        const df = buildDateFilter(months);
+        const df = buildDateFilter(req.query);
         const [rows] = await db.query(
             `SELECT
                 COALESCE(cc.code, 'Unknown') AS costCenterCode,
@@ -226,8 +243,7 @@ exports.getSpendByCostCenter = async (req, res) => {
 // GET /api/analytics/order-status-distribution
 exports.getOrderStatusDistribution = async (req, res) => {
     try {
-        const { months } = req.query;
-        const df = buildDateFilter(months);
+        const df = buildDateFilter(req.query);
         const [rows] = await db.query(
             `SELECT
                 COALESCE(status, 'Unknown') AS status,
@@ -254,8 +270,7 @@ exports.getOrderStatusDistribution = async (req, res) => {
 exports.getSupplierPerformance = async (req, res) => {
     try {
         const limit = parseInt(req.query.limit) || 10;
-        const { months } = req.query;
-        const df = buildDateFilter(months);
+        const df = buildDateFilter(req.query);
         const [rows] = await db.query(
             `SELECT
                 o.supplier_id AS supplierId,
@@ -294,7 +309,17 @@ exports.getSupplierPerformance = async (req, res) => {
 // GET /api/analytics/monthly-orders-count?months=12
 exports.getMonthlyOrdersCount = async (req, res) => {
     try {
-        const months = parseInt(req.query.months) || 12;
+        const df = buildDateFilter(req.query);
+        const hasDateFilter = df.clause.length > 0;
+        let whereClause = 'WHERE submission_date IS NOT NULL';
+        let queryParams;
+        if (hasDateFilter) {
+            whereClause += df.clause;
+            queryParams = df.params;
+        } else {
+            whereClause += ' AND submission_date >= DATE_SUB(NOW(), INTERVAL ? MONTH)';
+            queryParams = [12];
+        }
         const [rows] = await db.query(
             `SELECT
                 DATE_FORMAT(submission_date, '%Y-%m') AS period,
@@ -304,11 +329,10 @@ exports.getMonthlyOrdersCount = async (req, res) => {
                 COUNT(CASE WHEN priority = 'Normal' THEN 1 END) AS normal,
                 COUNT(CASE WHEN priority = 'Low' THEN 1 END) AS low
             FROM orders
-            WHERE submission_date IS NOT NULL
-                AND submission_date >= DATE_SUB(NOW(), INTERVAL ? MONTH)
+            ${whereClause}
             GROUP BY period
             ORDER BY period`,
-            [months]
+            queryParams
         );
         res.json(rows.map(r => ({
             period: r.period,
@@ -327,8 +351,7 @@ exports.getMonthlyOrdersCount = async (req, res) => {
 // GET /api/analytics/approval-stats
 exports.getApprovalStats = async (req, res) => {
     try {
-        const { months } = req.query;
-        const df = buildDateFilter(months, 'created_at');
+        const df = buildDateFilter(req.query, 'created_at');
         const [[row]] = await db.query(
             `SELECT
                 COUNT(*) AS totalApprovals,
@@ -358,8 +381,7 @@ exports.getApprovalStats = async (req, res) => {
 exports.getTopParts = async (req, res) => {
     try {
         const limit = parseInt(req.query.limit) || 20;
-        const { months } = req.query;
-        const df = buildDateFilter(months);
+        const df = buildDateFilter(req.query);
         const [rows] = await db.query(
             `SELECT
                 COALESCE(item_description, 'Unknown') AS itemDescription,
@@ -382,5 +404,118 @@ exports.getTopParts = async (req, res) => {
     } catch (error) {
         console.error('Top parts error:', error);
         res.status(500).json({ success: false, message: 'Failed to load top parts' });
+    }
+};
+
+// GET /api/analytics/drill-down?type=period&value=2026-01
+exports.getDrillDown = async (req, res) => {
+    try {
+        const { type, value } = req.query;
+        if (!type || value == null) {
+            return res.status(400).json({ success: false, message: 'type and value are required' });
+        }
+
+        const df = buildDateFilter(req.query, 'o.submission_date');
+        let typeClause = '';
+        const typeParams = [];
+
+        switch (type) {
+            case 'period':
+                typeClause = " AND DATE_FORMAT(o.submission_date, '%Y-%m') = ?";
+                typeParams.push(value);
+                break;
+            case 'building':
+                typeClause = ' AND o.building = ?';
+                typeParams.push(value);
+                break;
+            case 'supplier':
+                typeClause = ' AND o.supplier_id = ?';
+                typeParams.push(parseInt(value));
+                break;
+            case 'supplierName':
+                typeClause = ' AND s.name = ?';
+                typeParams.push(value);
+                break;
+            case 'category':
+                typeClause = " AND COALESCE(NULLIF(TRIM(o.category),''),'Uncategorized') = ?";
+                typeParams.push(value);
+                break;
+            case 'status':
+                typeClause = ' AND o.status = ?';
+                typeParams.push(value);
+                break;
+            case 'part':
+                typeClause = ' AND o.item_description = ?';
+                typeParams.push(value);
+                break;
+            default:
+                return res.status(400).json({ success: false, message: 'Invalid drill-down type' });
+        }
+
+        const allParams = [...df.params, ...typeParams];
+
+        const [rows] = await db.query(
+            `SELECT
+                o.id,
+                o.item_description AS itemDescription,
+                o.part_number AS partNumber,
+                o.building,
+                COALESCE(cc.name, '') AS costCenterName,
+                COALESCE(s.name, '') AS supplierName,
+                o.quantity,
+                o.unit_price AS unitPrice,
+                o.total_price AS totalPrice,
+                o.status,
+                o.priority,
+                DATE_FORMAT(o.submission_date, '%Y-%m-%d') AS submissionDate,
+                o.requester_name AS requesterName
+            FROM orders o
+            LEFT JOIN suppliers s ON o.supplier_id = s.id
+            LEFT JOIN cost_centers cc ON o.cost_center_id = cc.id
+            WHERE 1=1${df.clause}${typeClause}
+            ORDER BY o.submission_date DESC
+            LIMIT 200`,
+            allParams
+        );
+
+        // Build title
+        let title = 'Orders';
+        const monthNames = ['January','February','March','April','May','June',
+            'July','August','September','October','November','December'];
+        switch (type) {
+            case 'period': {
+                const [y, m] = value.split('-');
+                title = 'Orders \u2014 ' + (monthNames[parseInt(m) - 1] || m) + ' ' + y;
+                break;
+            }
+            case 'building':
+                title = 'Orders \u2014 Building: ' + value;
+                break;
+            case 'supplier':
+            case 'supplierName':
+                title = 'Orders \u2014 Supplier: ' + (rows.length > 0 ? rows[0].supplierName : value);
+                break;
+            case 'category':
+                title = 'Orders \u2014 Category: ' + value;
+                break;
+            case 'status':
+                title = 'Orders \u2014 Status: ' + value;
+                break;
+            case 'part':
+                title = 'Reorders \u2014 ' + value;
+                break;
+        }
+
+        const totalSpend = rows.reduce((sum, r) => sum + parseFloat(r.totalPrice || 0), 0);
+
+        res.json({
+            title,
+            orders: rows,
+            total: rows.length,
+            totalSpend: parseFloat(totalSpend.toFixed(2))
+        });
+    } catch (error) {
+        console.error('Drill-down error:', error);
+        res.status(500).json({ success: false, message: 'Failed to load drill-down data' });
     }
 };
