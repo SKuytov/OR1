@@ -325,9 +325,12 @@ const translations = {
         // Language
         'language.label': 'Език',
         'language.bg': '🇧🇬 Български',
-        'language.en': '🇬🇧 English'
+        'language.en': '🇬🇧 English',
+
+        // Analytics
+        'nav.analytics': '\u{1F4CA} Анализи'
     },
-    
+
     en: {
         // Login Screen
         'login.title': 'System Login',
@@ -651,7 +654,10 @@ const translations = {
         // Language
         'language.label': 'Language',
         'language.bg': '🇧🇬 Български',
-        'language.en': '🇬🇧 English'
+        'language.en': '🇬🇧 English',
+
+        // Analytics
+        'nav.analytics': '\u{1F4CA} Analytics'
     }
 };
 

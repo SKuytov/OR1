@@ -601,6 +601,10 @@ function showDashboard() {
         // ⭐ NEW: Show Create Order button for admin/procurement
         const btnProcCreate = document.getElementById('btnProcurementCreateOrder');
         if (btnProcCreate) btnProcCreate.classList.remove('hidden');
+
+        // Show analytics tab for admin and procurement
+        const analyticsTabButton = document.getElementById('analyticsTabButton');
+        if (analyticsTabButton) analyticsTabButton.hidden = false;
     }
 
     // Show orders tab by default
@@ -1873,6 +1877,11 @@ function switchTab(tabId) {
     document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
     document.getElementById(tabId).classList.remove('hidden');
     currentTab = tabId;
+
+    // Initialize analytics when tab is switched
+    if (tabId === 'analyticsTab' && window.AnalyticsModule) {
+        window.AnalyticsModule.init();
+    }
 
     // ⭐ NEW: Show brand training UI for admins in Suppliers tab
     if (tabId === 'suppliersTab' && currentUser && currentUser.role === 'admin') {

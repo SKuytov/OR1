@@ -12,6 +12,8 @@
     <link rel="stylesheet" href="brand-training.css">
     <!-- ⭐ Smart Quote Send Panel -->
     <link rel="stylesheet" href="quote-send.css">
+    <!-- Analytics Module -->
+    <link rel="stylesheet" href="analytics.css">
     <!-- ⭐ NEW: Intelligent Autocomplete -->
     <link rel="stylesheet" href="css/intelligent-autocomplete.css">
     <script src="upload-progress.js"></script>
@@ -77,6 +79,7 @@
                 <button class="tab" data-tab="buildingsTab" id="buildingsTabButton" hidden data-i18n="nav.buildings">Buildings</button>
                 <button class="tab" data-tab="costCentersTab" id="costCentersTabButton" hidden data-i18n="nav.costCenters">Cost Centers</button>
                 <button class="tab" data-tab="usersTab" id="usersTabButton" hidden data-i18n="nav.users">Users</button>
+                <button class="tab" data-tab="analyticsTab" id="analyticsTabButton" hidden data-i18n="nav.analytics">Analytics</button>
                 <!-- ⭐ ENHANCEMENT #1: Create Order Button -->
                 <button id="btnProcurementCreateOrder" class="btn btn-primary" style="margin-left: auto;" hidden>➕ Create Order</button>
             </div>
@@ -458,6 +461,13 @@
                 </div>
             </section>
 
+            <!-- Analytics Tab -->
+            <section id="analyticsTab" class="tab-content hidden">
+                <div id="analyticsTabContent">
+                    <!-- Rendered by analytics.js -->
+                </div>
+            </section>
+
             <!-- Users Tab (admin only) -->
             <section id="usersTab" class="tab-content hidden">
                 <div class="grid-2">
@@ -643,6 +653,8 @@
     </div>
 </div>
 
+<!-- Chart.js CDN for Analytics -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <!-- ⭐ LOAD I18N FIRST -->
 <script src="i18n.js"></script>
 <script src="app.js"></script>
@@ -663,6 +675,8 @@
 <script src="quote-send.js"></script>
 <!-- ⭐ NEW: Intelligent Autocomplete (Phase 5) -->
 <script src="js/intelligent-autocomplete.js"></script>
+<!-- Analytics Module -->
+<script src="analytics.js"></script>
 
 <!-- ⭐ Language Selector Event Handlers -->
 <script>
