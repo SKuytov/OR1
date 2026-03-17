@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PartPulse Order Management v2.6.0</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- File Upload Enhancement Styles -->
+    <link rel="stylesheet" href="css/order-form-enhanced.css">
+    <link rel="stylesheet" href="documents.css">
+    <link rel="stylesheet" href="approvals.css">
+    <link rel="stylesheet" href="brand-training.css">
+    <!-- ⭐ Smart Quote Send Panel -->
+    <link rel="stylesheet" href="quote-send.css">
+    <!-- ⭐ NEW: Intelligent Autocomplete -->
+    <link rel="stylesheet" href="css/intelligent-autocomplete.css">
+    <script src="upload-progress.js"></script>
+</head>
+<body>
+<div id="app">
+    <!-- Login Screen -->
+    <div id="loginScreen" class="screen">
+        <div class="login-container">
+            <h1>PartPulse Orders</h1>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="username" data-i18n="login.username">Username</label>
+                    <input type="text" id="username" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="password" data-i18n="login.password">Password</label>
+                    <input type="password" id="password" class="form-control" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block" data-i18n="login.button">Login</button>
+                <div id="loginError" class="error-message hidden"></div>
+            </form>
+            <!-- Language Selector on Login Screen -->
+            <div style="margin-top: 1rem; text-align: center;">
+                <select id="languageSelectorLogin" class="form-control" style="width: auto; display: inline-block; font-size: 0.85rem;">
+                    <option value="bg">🇧🇬 Български</option>
+                    <option value="en">🇬🇧 English</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Dashboard -->
+    <div id="dashboardScreen" class="screen hidden">
+        <header>
+            <div class="container header-row">
+                <div>
+                    <h1>PartPulse Orders v2.6.0</h1>
+                    <div id="userRole" class="badge-role"></div>
+                </div>
+                <div class="user-info">
+                    <span id="userName"></span>
+                    <!-- Language Selector in Header -->
+                    <select id="languageSelector" class="form-control" style="width: auto; margin: 0 0.5rem; font-size: 0.85rem;">
+                        <option value="bg">🇧🇬 BG</option>
+                        <option value="en">🇬🇧 EN</option>
+                    </select>
+                    <button id="logoutBtn" class="btn btn-secondary" data-i18n="nav.logout">Logout</button>
+                </div>
+            </div>
+        </header>
+
+        <div class="container">
+            <!-- Tabs for admin/procurement -->
+            <div id="navTabs" class="tabs hidden">
+                <button class="tab active" data-tab="ordersTab" data-i18n="nav.orders">Orders</button>
+                <button class="tab" data-tab="quotesTab" data-i18n="nav.quotes">Quotes</button>
+                <button class="tab" data-tab="approvalsTab" id="approvalsTabButton" hidden style="position: relative;" data-i18n="nav.approvals">
+                    Approvals
+                    <span id="pendingApprovalBadge" class="badge-notification hidden"></span>
+                </button>
+                <button class="tab" data-tab="suppliersTab" data-i18n="nav.suppliers">Suppliers</button>
+                <button class="tab" data-tab="buildingsTab" id="buildingsTabButton" hidden data-i18n="nav.buildings">Buildings</button>
+                <button class="tab" data-tab="costCentersTab" id="costCentersTabButton" hidden data-i18n="nav.costCenters">Cost Centers</button>
+                <button class="tab" data-tab="usersTab" id="usersTabButton" hidden data-i18n="nav.users">Users</button>
+                <!-- ⭐ ENHANCEMENT #1: Create Order Button -->
+                <button id="btnProcurementCreateOrder" class="btn btn-primary" style="margin-left: auto;" hidden>➕ Create Order</button>
+            </div>
+
+            <!-- Requester: Create Order -->
+            <section id="createOrderSection" class="card hidden">
+                <div class="card-header-row">
+                    <h2 data-i18n="order.create.title">Create New Order</h2>
+                    <span id="requesterBuildingBadge" class="badge"></span>
+                </div>
+                <form id="createOrderForm" class="grid-2">
+                    <div>
+                        <div class="form-group">
+                            <label for="building" data-i18n="order.create.building">Building</label>
+                            <select id="building" class="form-control" required>
+                                <option value="">Select Building</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="costCenterGroup">
+                            <label data-i18n="order.create.costCenter">Cost Center</label> <span style="color:#ef4444;">*</span>
+                            <div id="costCenterRadios" class="radio-group">
+                                <span class="text-muted" data-i18n="order.create.costCenter.selectBuilding">Select a building first</span>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="itemDescription" data-i18n="order.create.itemDescription">Item Description</label>
+                            <textarea id="itemDescription" class="form-control" rows="3" required data-i18n="order.create.itemDescription.placeholder"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="partNumber" data-i18n="order.create.partNumber">Part Number (optional)</label>
+                            <input type="text" id="partNumber" class="form-control" data-i18n="order.create.partNumber.placeholder">
+                        </div>
+                        <div class="form-group">
+                            <label for="category" data-i18n="order.create.category">Category (optional)</label>
+                            <input type="text" id="category" class="form-control" data-i18n="order.create.category.placeholder">
+                        </div>
+                    </div>
+                    <div>
+                        <div class="form-group">
+                            <label for="quantity" data-i18n="order.create.quantity">Quantity</label>
+                            <input type="number" id="quantity" class="form-control" min="1" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="dateNeeded" data-i18n="order.create.dateNeeded">Date Needed</label>
+                            <input type="date" id="dateNeeded" class="form-control date-picker">
+                        </div>
+                        <div class="form-group">
+                            <label for="priority" data-i18n="order.create.priority">Priority</label>
+                            <select id="priority" class="form-control">
+                                <option value="Normal" data-i18n="order.create.priority.normal">Normal</option>
+                                <option value="Low">Low</option>
+                                <option value="High">High</option>
+                                <option value="Urgent" data-i18n="order.create.priority.urgent">Urgent</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="notes" data-i18n="order.create.notes">Additional Notes</label>
+                            <textarea id="notes" class="form-control" rows="2" data-i18n="order.create.notes.placeholder"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="attachments" data-i18n="order.create.attachments">Attach Files</label>
+                            <input type="file" id="attachments" name="attachments" multiple>
+                            <!-- File preview will be inserted here by JavaScript -->
+                            <div id="file-preview-container"></div>
+                            <!-- Upload progress will be inserted here by JavaScript -->
+                            <div id="upload-progress-container" style="display: none;"></div>
+                        </div>
+                        <button type="submit" class="btn btn-primary" data-i18n="order.create.submit">Submit Order</button>
+                    </div>
+                </form>
+            </section>
+
+            <!-- Orders Tab -->
+            <section id="ordersTab" class="tab-content active">
+               <div class="card">
+                    <div class="card-header-row">
+                        <h2 data-i18n="orders.title">Orders</h2>
+                        <div class="order-actions" id="orderActionsContainer">
+                            <div class="view-mode-toggle">
+                                <button id="btnViewFlat" class="btn-view-mode active" data-i18n="orders.view.flat" title="Flat list view">☰</button>
+                                <button id="btnViewGrouped" class="btn-view-mode" data-i18n="orders.view.grouped" title="Group by status">⊞</button>
+                            </div>
+                            <div id="orderActionsBar" class="order-actions-inner" hidden>
+                                <span id="selectedCount" class="badge-muted">0 <span data-i18n="orders.selected">selected</span></span>
+                                <button id="btnCreateQuote" class="btn btn-primary btn-sm" data-i18n="orders.actions.createQuote">Create Quote from Selected</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Smart Filters (visible to all roles) -->
+                    <div class="filters-container">
+                        <!-- Quick Filter Chips -->
+                        <div class="quick-filters filters-bar" style="display: flex; align-items: center; flex-wrap: wrap;">
+                            <button class="quick-filter-chip" data-filter="late" data-i18n="orders.quickFilter.late">⚠ Late</button>
+                            <button class="quick-filter-chip" data-filter="due7" data-i18n="orders.quickFilter.due7">🕒 Due in 7d</button>
+                            <button class="quick-filter-chip" data-filter="due14" data-i18n="orders.quickFilter.due14">📅 Due in 14d</button>
+                            <button class="quick-filter-chip" data-filter="new" data-i18n="orders.quickFilter.new">🆕 New</button>
+                            <button class="quick-filter-chip" data-filter="ordered" data-i18n="orders.quickFilter.ordered">📦 Ordered</button>
+                            <button class="quick-filter-chip" data-filter="transit" data-i18n="orders.quickFilter.transit">🚚 In Transit</button>
+                        </div>
+
+                        <!-- Detailed Filters -->
+                        <div class="filters-grid">
+                            <input type="text" id="filterSearch" class="form-control form-control-sm" data-i18n="orders.search">
+                            <select id="filterStatus" class="form-control form-control-sm">
+                                <option value="" data-i18n="orders.filter.status">Status: All</option>
+                            </select>
+                            <select id="filterBuilding" class="form-control form-control-sm">
+                                <option value="" data-i18n="orders.filter.building">Building: All</option>
+                            </select>
+                            <select id="filterPriority" class="form-control form-control-sm">
+                                <option value="" data-i18n="orders.filter.priority">Priority: All</option>
+                                <option value="Low">Low</option>
+                                <option value="Normal" data-i18n="order.create.priority.normal">Normal</option>
+                                <option value="High">High</option>
+                                <option value="Urgent" data-i18n="order.create.priority.urgent">Urgent</option>
+                            </select>
+                            <select id="filterSupplier" class="form-control form-control-sm">
+                                <option value="" data-i18n="orders.filter.supplier">Supplier: All</option>
+                            </select>
+                            <select id="filterDelivery" class="form-control form-control-sm">
+                                <option value="" data-i18n="orders.filter.delivery">Delivery: All</option>
+                                <option value="late" data-i18n="orders.quickFilter.late">Late</option>
+                                <option value="due7" data-i18n="orders.quickFilter.due7">Due in 7 days</option>
+                                <option value="due14" data-i18n="orders.quickFilter.due14">Due in 14 days</option>
+                                <option value="ontrack">On Track</option>
+                            </select>
+                        </div>
+                        <div class="filters-actions">
+                            <button id="btnClearFilters" class="btn-link btn-sm" data-i18n="orders.filter.clear">Clear All Filters</button>
+                        </div>
+                    </div>
+
+                    <div id="ordersTable"></div>
+                </div>
+
+                <!-- Order Detail Panel -->
+                <div id="orderDetailPanel" class="side-panel hidden">
+                    <div class="side-panel-header">
+                        <h3 id="detailTitle" data-i18n="orderDetail.title">Order Details</h3>
+                        <button id="btnCloseDetail" class="btn-icon">✕</button>
+                    </div>
+                    <div id="orderDetailBody" class="side-panel-body">
+                        <!-- Order details will be rendered here by app.js -->
+                    </div>
+                    <!-- Documents Section (Phase 2) -->
+                    <div id="documentsSection" style="display:none; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid rgba(148,163,184,0.2);">
+                        <!-- Documents UI renders here by documents.js -->
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Approvals Tab (Phase 3) -->
+            <section id="approvalsTab" class="tab-content hidden">
+                <div class="card">
+                    <div class="card-header-row">
+                        <h2 data-i18n="nav.approvals">Approval Requests</h2>
+                        <button id="btnRefreshApprovals" class="btn btn-secondary btn-sm" onclick="if(typeof loadApprovals === 'function') loadApprovals();" data-i18n="quotes.refresh">Refresh</button>
+                    </div>
+
+                    <!-- Approval Filters -->
+                    <div class="filters-container">
+                        <div class="filters-grid">
+                            <input type="text" id="approvalSearch" class="form-control form-control-sm" placeholder="🔍 Search approvals...">
+                            <select id="approvalStatusFilter" class="form-control form-control-sm">
+                                <option value="">All Statuses</option>
+                                <option value="pending" selected>Pending</option>
+                                <option value="approved">Approved</option>
+                                <option value="rejected">Rejected</option>
+                            </select>
+                            <select id="approvalPriorityFilter" class="form-control form-control-sm">
+                                <option value="" data-i18n="orders.filter.priority">Priority: All</option>
+                                <option value="Low">Low</option>
+                                <option value="Normal" data-i18n="order.create.priority.normal">Normal</option>
+                                <option value="High">High</option>
+                                <option value="Urgent" data-i18n="order.create.priority.urgent">Urgent</option>
+                            </select>
+                        </div>
+                        <div class="filters-actions">
+                            <button id="btnClearApprovalFilters" class="btn-link btn-sm" data-i18n="orders.filter.clear">Clear Filters</button>
+                        </div>
+                    </div>
+
+                    <div id="approvalsTable"></div>
+                </div>
+
+                <!-- Approval Detail Panel -->
+                <div id="approvalDetailPanel" class="side-panel hidden">
+                    <div class="side-panel-header">
+                        <h3>Approval Request</h3>
+                        <button id="btnCloseApprovalDetail" class="btn-icon">✕</button>
+                    </div>
+                    <div id="approvalDetailBody" class="side-panel-body">
+                        <!-- Approval details will be rendered here by approvals.js -->
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Quotes Tab -->
+            <section id="quotesTab" class="tab-content hidden">
+                <div class="card">
+                    <div class="card-header-row">
+                        <h2 data-i18n="quotes.title">Quotes</h2>
+                        <div style="display:flex;gap:0.5rem;">
+                            <button id="btnNewQuoteFromQuotesTab" class="btn btn-primary btn-sm">➕ New Quote</button>
+                            <button id="btnRefreshQuotes" class="btn btn-secondary btn-sm" data-i18n="quotes.refresh">Refresh</button>
+                        </div>
+                    </div>
+                    <div id="quotesTable"></div>
+                </div>
+
+                <div id="quoteDetailPanel" class="side-panel hidden">
+                    <div class="side-panel-header">
+                        <h3 id="quoteDetailTitle" data-i18n="quoteDetail.title">Quote Details</h3>
+                        <button id="btnCloseQuoteDetail" class="btn-icon">✕</button>
+                    </div>
+                    <div id="quoteDetailBody" class="side-panel-body"></div>
+                </div>
+            </section>
+
+            <!-- Suppliers Tab -->
+            <section id="suppliersTab" class="tab-content hidden">
+                <!-- ⭐ NEW: Brand Training UI (Admin Only) -->
+                <div class="card" id="brandTrainingCard" hidden>
+                    <div id="brandTrainingContainer">
+                        <!-- Brand training UI will be loaded here -->
+                    </div>
+                </div>
+                
+                <div class="grid-2">
+                    <div class="card">
+                        <div class="card-header-row">
+                            <h2 data-i18n="suppliers.title">Suppliers</h2>
+                            <button id="btnNewSupplier" class="btn btn-primary btn-sm" data-i18n="suppliers.new">New Supplier</button>
+                        </div>
+                        <div id="suppliersTable"></div>
+                    </div>
+                    <div class="card" id="supplierFormCard" hidden>
+                        <h2 id="supplierFormTitle" data-i18n="supplierForm.create">Create Supplier</h2>
+                        <form id="supplierForm">
+                            <input type="hidden" id="supplierId">
+                            <div class="form-group">
+                                <label for="supplierName" data-i18n="supplierForm.name">Name</label>
+                                <input type="text" id="supplierName" class="form-control" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="supplierContact" data-i18n="supplierForm.contact">Contact Person</label>
+                                <input type="text" id="supplierContact" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label for="supplierEmail" data-i18n="supplierForm.email">Email</label>
+                                <input type="email" id="supplierEmail" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label for="supplierPhone" data-i18n="supplierForm.phone">Phone</label>
+                                <input type="text" id="supplierPhone" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label for="supplierWebsite" data-i18n="supplierForm.website">Website</label>
+                                <input type="text" id="supplierWebsite" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label for="supplierAddress" data-i18n="supplierForm.address">Address</label>
+                                <textarea id="supplierAddress" class="form-control" rows="2"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="supplierNotes" data-i18n="supplierForm.notes">Notes</label>
+                                <textarea id="supplierNotes" class="form-control" rows="2"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="supplierActive" data-i18n="supplierForm.active">Active</label>
+                                <select id="supplierActive" class="form-control">
+                                    <option value="1" data-i18n="common.yes">Yes</option>
+                                    <option value="0" data-i18n="common.no">No</option>
+                                </select>
+                            </div>
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary" data-i18n="common.save">Save</button>
+                                <button type="button" id="btnCancelSupplier" class="btn btn-secondary" data-i18n="common.cancel">Cancel</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Buildings Tab (admin only) -->
+            <section id="buildingsTab" class="tab-content hidden">
+                <div class="grid-2">
+                    <div class="card">
+                        <div class="card-header-row">
+                            <h2 data-i18n="buildings.title">Buildings</h2>
+                            <button id="btnNewBuilding" class="btn btn-primary btn-sm" data-i18n="buildings.new">New Building</button>
+                        </div>
+                        <div id="buildingsTable"></div>
+                    </div>
+                    <div class="card" id="buildingFormCard" hidden>
+                        <h2 id="buildingFormTitle" data-i18n="buildingForm.create">Create Building</h2>
+                        <form id="buildingForm">
+                            <input type="hidden" id="buildingId">
+                            <div class="form-group">
+                                <label for="buildingCode" data-i18n="buildingForm.code">Code</label>
+                                <input type="text" id="buildingCode" class="form-control" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="buildingName" data-i18n="buildingForm.name">Name</label>
+                                <input type="text" id="buildingName" class="form-control" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="buildingDescription" data-i18n="buildingForm.description">Description</label>
+                                <textarea id="buildingDescription" class="form-control" rows="2"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="buildingActive" data-i18n="buildingForm.active">Active</label>
+                                <select id="buildingActive" class="form-control">
+                                    <option value="1" data-i18n="common.yes">Yes</option>
+                                    <option value="0" data-i18n="common.no">No</option>
+                                </select>
+                            </div>
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary" data-i18n="common.save">Save</button>
+                                <button type="button" id="btnCancelBuilding" class="btn btn-secondary" data-i18n="common.cancel">Cancel</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Cost Centers Tab (admin only) -->
+            <section id="costCentersTab" class="tab-content hidden">
+                <div class="grid-2">
+                    <div class="card">
+                        <div class="card-header-row">
+                            <h2 data-i18n="costCenters.title">Cost Centers</h2>
+                            <button id="btnNewCostCenter" class="btn btn-primary btn-sm" data-i18n="costCenters.new">New Cost Center</button>
+                        </div>
+                        <div class="form-group" style="margin-bottom:0.5rem;">
+                            <select id="ccFilterBuilding" class="form-control form-control-sm">
+                                <option value="" data-i18n="costCenters.filter.building">All Buildings</option>
+                            </select>
+                        </div>
+                        <div id="costCentersTable"></div>
+                    </div>
+                    <div class="card" id="costCenterFormCard" hidden>
+                        <h2 id="costCenterFormTitle" data-i18n="costCenterForm.create">Create Cost Center</h2>
+                        <form id="costCenterForm">
+                            <input type="hidden" id="costCenterId">
+                            <div class="form-group">
+                                <label for="ccBuilding" data-i18n="costCenterForm.building">Building</label>
+                                <select id="ccBuilding" class="form-control" required>
+                                    <option value="" data-i18n="costCenterForm.building.select">Select Building</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="ccCode" data-i18n="costCenterForm.code">Cost Center Code</label>
+                                <input type="text" id="ccCode" class="form-control" required placeholder="e.g. CC-CT-PROD">
+                            </div>
+                            <div class="form-group">
+                                <label for="ccName" data-i18n="costCenterForm.name">Name</label>
+                                <input type="text" id="ccName" class="form-control" required placeholder="e.g. CT Production">
+                            </div>
+                            <div class="form-group">
+                                <label for="ccDescription" data-i18n="costCenterForm.description">Description</label>
+                                <textarea id="ccDescription" class="form-control" rows="2"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="ccActive" data-i18n="costCenterForm.active">Active</label>
+                                <select id="ccActive" class="form-control">
+                                    <option value="1" data-i18n="common.yes">Yes</option>
+                                    <option value="0" data-i18n="common.no">No</option>
+                                </select>
+                            </div>
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary" data-i18n="common.save">Save</button>
+                                <button type="button" id="btnCancelCostCenter" class="btn btn-secondary" data-i18n="common.cancel">Cancel</button>
+                                <button type="button" id="btnDeleteCostCenter" class="btn btn-danger" hidden data-i18n="common.delete">Delete</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Users Tab (admin only) -->
+            <section id="usersTab" class="tab-content hidden">
+                <div class="grid-2">
+                    <div class="card">
+                        <div class="card-header-row">
+                            <h2 data-i18n="users.title">Users</h2>
+                            <button id="btnNewUser" class="btn btn-primary btn-sm" data-i18n="users.new">New User</button>
+                        </div>
+                        <div id="usersTable"></div>
+                    </div>
+                    <div class="card" id="userFormCard" hidden>
+                        <h2 id="userFormTitle" data-i18n="userForm.create">Create User</h2>
+                        <form id="userForm">
+                            <input type="hidden" id="userId">
+                            <div class="form-group">
+                                <label for="userUsername" data-i18n="userForm.username">Username</label>
+                                <input type="text" id="userUsername" class="form-control" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="userNameInput" data-i18n="userForm.name">Full Name</label>
+                                <input type="text" id="userNameInput" class="form-control" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="userEmail" data-i18n="userForm.email">Email</label>
+                                <input type="email" id="userEmail" class="form-control" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="userRole" data-i18n="userForm.role">Role</label>
+                                <select id="userRoleSelect" class="form-control" required>
+                                    <option value="admin" data-i18n="role.admin">Admin</option>
+                                    <option value="procurement" data-i18n="role.procurement">Procurement</option>
+                                    <option value="manager" data-i18n="role.manager">Manager</option>
+                                    <option value="requester" data-i18n="role.requester">Requester</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="userBuilding" data-i18n="userForm.building">Building (for requester)</label>
+                                <select id="userBuilding" class="form-control">
+                                    <option value="" data-i18n="userForm.building.none">None</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="userActive" data-i18n="userForm.active">Active</label>
+                                <select id="userActive" class="form-control">
+                                    <option value="1" data-i18n="common.yes">Yes</option>
+                                    <option value="0" data-i18n="common.no">No</option>
+                                </select>
+                            </div>
+                            <div class="form-group" id="userPasswordGroup">
+                                <label for="userPassword" data-i18n="userForm.password">Password (leave empty to auto-generate)</label>
+                                <input type="password" id="userPassword" class="form-control">
+                            </div>
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn-primary" data-i18n="common.save">Save</button>
+                                <button type="button" id="btnCancelUser" class="btn btn-secondary" data-i18n="common.cancel">Cancel</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+
+<!-- ⭐ Smart Quote Send Panel -->
+<div id="quoteSendPanel" class="quote-send-panel hidden"></div>
+
+<!-- ⭐ ENHANCEMENT #2: Procurement Create Order Modal (ENHANCED) -->
+<div id="procCreateOrderModal" class="modal-overlay hidden">
+    <div class="modal-card" style="max-width: 580px;">
+        <div class="modal-header">
+            <h3>➕ Create Order</h3>
+            <button class="btn-close" onclick="closeProcCreateOrderModal()">✕</button>
+        </div>
+        <div class="modal-body">
+            <form id="procCreateOrderForm">
+                <div class="form-group">
+                    <label>Building *</label>
+                    <select id="procBuilding" class="form-control" required>
+                        <option value="">Select Building</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Cost Center *</label>
+                    <div id="procCostCenterRadios" class="radio-group">
+                        <span class="text-muted">Select a building first</span>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Item Description *</label>
+                    <textarea id="procItemDescription" class="form-control" rows="2" required placeholder="Describe the item you need..."></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Part Number</label>
+                        <input type="text" id="procPartNumber" class="form-control" placeholder="Optional">
+                    </div>
+                    <div class="form-group">
+                        <label>Category</label>
+                        <input type="text" id="procCategory" class="form-control" placeholder="Optional">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Quantity *</label>
+                        <input type="number" id="procQuantity" class="form-control" min="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Date Needed *</label>
+                        <input type="date" id="procDateNeeded" class="form-control date-picker" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Priority</label>
+                    <select id="procPriority" class="form-control">
+                        <option value="Normal">Normal</option>
+                        <option value="High">High</option>
+                        <option value="Urgent">Urgent</option>
+                        <option value="Low">Low</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Notes</label>
+                    <textarea id="procNotes" class="form-control" rows="2" placeholder="Additional information..."></textarea>
+                </div>
+                <!-- ⭐ NEW: File Upload -->
+                <div class="form-group">
+                    <label>Attach Files</label>
+                    <input type="file" id="procAttachments" name="procAttachments" multiple>
+                    <div id="proc-file-preview-container"></div>
+                    <div id="proc-upload-progress-container" style="display: none;"></div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeProcCreateOrderModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Order</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ⭐ ENHANCEMENT #3: Create Quote Modal -->
+<div id="createQuoteModal" class="modal-overlay hidden">
+    <div class="modal-card" style="max-width: 520px;">
+        <div class="modal-header">
+            <h3>📋 Create Quote</h3>
+            <button class="btn-close" onclick="closeCreateQuoteModal()">✕</button>
+        </div>
+        <div class="modal-body">
+            <div class="text-muted" style="margin-bottom: 0.75rem;">
+              Creating quote for <strong id="cqOrderCount">0</strong> selected order(s)
+            </div>
+            <form id="createQuoteForm">
+                <div class="form-group">
+                    <label>Supplier *</label>
+                    <select id="cqSupplier" class="form-control" required></select>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Currency</label>
+                        <select id="cqCurrency" class="form-control">
+                            <option value="EUR">EUR</option>
+                            <option value="USD">USD</option>
+                            <option value="BGN">BGN</option>
+                            <option value="GBP">GBP</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Valid Until</label>
+                        <input type="date" id="cqValidUntil" class="form-control date-picker">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Notes</label>
+                    <textarea id="cqNotes" class="form-control" rows="2" placeholder="Internal notes about this quote..."></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeCreateQuoteModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Quote</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ⭐ LOAD I18N FIRST -->
+<script src="i18n.js"></script>
+<script src="app.js"></script>
+<!-- File Upload Enhancement Script -->
+<script src="js/order-form-enhanced.js"></script>
+<script src="documents.js"></script>
+<script src="approvals.js"></script>
+<script src="approval-submission.js"></script>
+<!-- ⭐ Order Assignment System (Phase 4) -->
+<script src="order-assignment.js"></script>
+<!-- ⭐ Professional Supplier Selector -->
+<script src="supplier-selector.js"></script>
+<!-- ⭐ Smart Supplier Suggestions -->
+<script src="supplier-suggestions.js"></script>
+<!-- ⭐ Brand Training UI -->
+<script src="brand-training.js"></script>
+<!-- ⭐ Smart Quote Send Panel -->
+<script src="quote-send.js"></script>
+<!-- ⭐ NEW: Intelligent Autocomplete (Phase 5) -->
+<script src="js/intelligent-autocomplete.js"></script>
+
+<!-- ⭐ Language Selector Event Handlers -->
+<script>
+// Sync both language selectors
+if (document.getElementById('languageSelector')) {
+    document.getElementById('languageSelector').addEventListener('change', function() {
+        window.i18n.setLanguage(this.value);
+        if (document.getElementById('languageSelectorLogin')) {
+            document.getElementById('languageSelectorLogin').value = this.value;
+        }
+    });
+}
+
+if (document.getElementById('languageSelectorLogin')) {
+    document.getElementById('languageSelectorLogin').addEventListener('change', function() {
+        window.i18n.setLanguage(this.value);
+        if (document.getElementById('languageSelector')) {
+            document.getElementById('languageSelector').value = this.value;
+        }
+    });
+}
+
+// Initialize language selectors with current language
+setTimeout(() => {
+    const currentLang = window.i18n.getCurrentLanguage();
+    if (document.getElementById('languageSelector')) {
+        document.getElementById('languageSelector').value = currentLang;
+    }
+    if (document.getElementById('languageSelectorLogin')) {
+        document.getElementById('languageSelectorLogin').value = currentLang;
+    }
+}, 100);
+</script>
+</body>
+</html>

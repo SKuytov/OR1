@@ -1,0 +1,483 @@
+/* frontend/documents.css - Phase 2: Tabbed UI & Multi-Order Documents */
+
+/* === TAB NAVIGATION === */
+.detail-tabs {
+    display: flex;
+    gap: 0.5rem;
+    padding: 1rem 1.5rem 0;
+    background: rgba(15, 23, 42, 0.8);
+    border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.detail-tab {
+    background: transparent;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    color: #94a3b8;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+    position: relative;
+    bottom: -1px;
+}
+
+.detail-tab:hover {
+    color: #e2e8f0;
+    background: rgba(59, 130, 246, 0.1);
+}
+
+.detail-tab.active {
+    color: #60a5fa;
+    border-bottom-color: #60a5fa;
+    background: rgba(59, 130, 246, 0.1);
+}
+
+/* === DOCUMENTS CONTAINER === */
+.documents-container {
+    padding: 1.5rem;
+}
+
+.documents-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.documents-header h4 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: #e2e8f0;
+}
+
+.documents-empty {
+    text-align: center;
+    padding: 3rem 1.5rem;
+    background: rgba(15, 23, 42, 0.4);
+    border-radius: 12px;
+    border: 1px dashed rgba(148, 163, 184, 0.3);
+}
+
+.documents-empty p {
+    margin: 0;
+    color: #94a3b8;
+    font-size: 0.95rem;
+}
+
+/* === DOCUMENT LIST === */
+.documents-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+/* === DOCUMENT CARD === */
+.document-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1rem;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    border-radius: 10px;
+    transition: all 0.2s;
+}
+
+.document-card:hover {
+    background: rgba(15, 23, 42, 0.8);
+    border-color: rgba(148, 163, 184, 0.5);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.document-icon {
+    font-size: 2rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.document-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.document-name {
+    font-weight: 600;
+    color: #e2e8f0;
+    font-size: 0.95rem;
+    margin-bottom: 0.4rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.document-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    color: #94a3b8;
+    margin-bottom: 0.3rem;
+}
+
+.document-meta span {
+    white-space: nowrap;
+}
+
+.document-description {
+    font-size: 0.85rem;
+    color: #cbd5e1;
+    margin-top: 0.5rem;
+    line-height: 1.5;
+}
+
+.document-orders {
+    margin-top: 0.6rem;
+    font-size: 0.85rem;
+    color: #94a3b8;
+}
+
+.order-badge {
+    display: inline-block;
+    padding: 0.2rem 0.5rem;
+    background: rgba(59, 130, 246, 0.2);
+    border: 1px solid rgba(59, 130, 246, 0.4);
+    border-radius: 6px;
+    color: #60a5fa;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-right: 0.3rem;
+}
+
+.document-actions {
+    display: flex;
+    gap: 0.4rem;
+    flex-shrink: 0;
+}
+
+.btn-icon.btn-danger {
+    color: #f87171;
+    border-color: rgba(248, 113, 113, 0.3);
+}
+
+.btn-icon.btn-danger:hover {
+    background: rgba(248, 113, 113, 0.1);
+    border-color: rgba(248, 113, 113, 0.5);
+}
+
+/* === UPLOAD DIALOG === */
+.upload-dialog-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.9);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 1rem;
+}
+
+.upload-dialog {
+    background: #020617;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    border-radius: 16px;
+    max-width: 700px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+
+.upload-dialog-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.upload-dialog-header h3 {
+    margin: 0;
+    font-size: 1.2rem;
+    color: #e2e8f0;
+}
+
+.upload-dialog-body {
+    padding: 1.5rem;
+}
+
+.upload-dialog-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.8rem;
+    padding: 1.5rem;
+    border-top: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+/* === ORDER FILTERS === */
+.order-filters {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 0.5rem;
+    margin-bottom: 0.8rem;
+}
+
+.order-filters .form-control {
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    color: #e2e8f0;
+    font-size: 0.85rem;
+    padding: 0.5rem 0.75rem;
+}
+
+.order-filters .form-control:focus {
+    border-color: #60a5fa;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.1);
+}
+
+.order-filters select.form-control {
+    min-width: 150px;
+}
+
+/* === ORDER SELECTION LIST === */
+.order-selection-list {
+    max-height: 350px;
+    overflow-y: auto;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(148, 163, 184, 0.3);
+    border-radius: 8px;
+    padding: 0.5rem;
+}
+
+/* Enhanced order checkbox layout */
+.order-checkbox-label {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.75rem 0.8rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 0.4rem;
+    border: 1px solid transparent;
+}
+
+.order-checkbox-label:last-child {
+    margin-bottom: 0;
+}
+
+.order-checkbox-label:hover {
+    background: rgba(59, 130, 246, 0.08);
+    border-color: rgba(59, 130, 246, 0.2);
+}
+
+.order-checkbox-label input[type="checkbox"] {
+    width: auto;
+    cursor: pointer;
+    accent-color: #60a5fa;
+    margin-top: 0.2rem;
+    flex-shrink: 0;
+}
+
+.order-checkbox-content {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.order-checkbox-main {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+}
+
+.order-id {
+    font-weight: 700;
+    color: #60a5fa;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+}
+
+.order-desc {
+    flex: 1;
+    color: #cbd5e1;
+    font-size: 0.9rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.order-checkbox-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    color: #94a3b8;
+    flex-wrap: wrap;
+}
+
+.order-checkbox-meta span {
+    white-space: nowrap;
+}
+
+/* Status badges in order list */
+.order-checkbox-label .status-badge {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.5rem;
+    flex-shrink: 0;
+}
+
+/* Checked state */
+input[type="checkbox"].order-checkbox:checked ~ .order-checkbox-content .order-desc {
+    color: #e2e8f0;
+    font-weight: 500;
+}
+
+input[type="checkbox"].order-checkbox:checked ~ .order-checkbox-content .order-checkbox-meta {
+    color: #cbd5e1;
+}
+
+/* OLD SIMPLE CHECKBOX (fallback for backward compatibility) */
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.6rem 0.8rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.2s;
+    margin-bottom: 0.4rem;
+}
+
+.checkbox-label:last-child {
+    margin-bottom: 0;
+}
+
+.checkbox-label:hover {
+    background: rgba(59, 130, 246, 0.1);
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: auto;
+    cursor: pointer;
+    accent-color: #60a5fa;
+}
+
+.checkbox-label span {
+    flex: 1;
+    color: #cbd5e1;
+    font-size: 0.9rem;
+}
+
+.order-checkbox:checked + span {
+    color: #e2e8f0;
+    font-weight: 500;
+}
+
+/* Custom scrollbar for order list */
+.order-selection-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.order-selection-list::-webkit-scrollbar-track {
+    background: rgba(15, 23, 42, 0.4);
+    border-radius: 4px;
+}
+
+.order-selection-list::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.4);
+    border-radius: 4px;
+}
+
+.order-selection-list::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.6);
+}
+
+/* === ERROR STATE === */
+.documents-error {
+    text-align: center;
+    padding: 2rem;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 10px;
+}
+
+.documents-error p {
+    margin: 0;
+    color: #f87171;
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 768px) {
+    .detail-tabs {
+        padding: 0.8rem 1rem 0;
+    }
+    
+    .detail-tab {
+        padding: 0.6rem 1rem;
+        font-size: 0.85rem;
+    }
+    
+    .documents-container {
+        padding: 1rem;
+    }
+    
+    .document-card {
+        flex-direction: column;
+        gap: 0.8rem;
+    }
+    
+    .document-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+    
+    .upload-dialog {
+        max-height: 95vh;
+        max-width: 95vw;
+    }
+    
+    .upload-dialog-header,
+    .upload-dialog-body,
+    .upload-dialog-footer {
+        padding: 1rem;
+    }
+    
+    .order-filters {
+        grid-template-columns: 1fr;
+    }
+    
+    .order-filters select.form-control {
+        width: 100%;
+    }
+    
+    .order-checkbox-main {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.4rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .documents-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.8rem;
+    }
+    
+    .documents-header .btn {
+        width: 100%;
+    }
+    
+    .order-selection-list {
+        max-height: 250px;
+    }
+}

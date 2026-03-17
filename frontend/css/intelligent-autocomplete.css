@@ -1,0 +1,253 @@
+/* frontend/css/intelligent-autocomplete.css */
+/* Beautiful styling for intelligent autocomplete component */
+
+/* Autocomplete container */
+.autocomplete-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    
+    margin-top: 4px;
+    background: white;
+    border: 1px solid rgba(226, 232, 240, 1);
+    border-radius: 8px;
+    box-shadow: 
+        0 10px 15px -3px rgba(0, 0, 0, 0.1),
+        0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    
+    max-height: 320px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    
+    /* Smooth animations */
+    animation: autocomplete-fadeIn 0.15s ease-out;
+}
+
+@keyframes autocomplete-fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Custom scrollbar */
+.autocomplete-suggestions::-webkit-scrollbar {
+    width: 8px;
+}
+
+.autocomplete-suggestions::-webkit-scrollbar-track {
+    background: rgba(241, 245, 249, 0.5);
+    border-radius: 4px;
+}
+
+.autocomplete-suggestions::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.5);
+    border-radius: 4px;
+}
+
+.autocomplete-suggestions::-webkit-scrollbar-thumb:hover {
+    background: rgba(100, 116, 139, 0.7);
+}
+
+/* Individual suggestion item */
+.autocomplete-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    
+    padding: 12px 16px;
+    cursor: pointer;
+    
+    transition: all 0.15s ease;
+    
+    /* Typography */
+    font-size: 14px;
+    line-height: 1.5;
+    color: rgba(30, 41, 59, 1);
+    
+    /* Border between items */
+    border-bottom: 1px solid rgba(241, 245, 249, 0.8);
+}
+
+.autocomplete-item:last-child {
+    border-bottom: none;
+}
+
+/* Hover state */
+.autocomplete-item:hover,
+.autocomplete-item.selected {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(147, 51, 234, 0.08));
+    color: rgba(30, 58, 138, 1);
+}
+
+/* Active/pressed state */
+.autocomplete-item:active {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(147, 51, 234, 0.15));
+    transform: scale(0.98);
+}
+
+/* Main text */
+.autocomplete-text {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    
+    /* Support for Cyrillic */
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 
+                 'Helvetica Neue', Arial, 'Noto Sans', sans-serif,
+                 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
+}
+
+/* Usage count badge */
+.autocomplete-badge {
+    flex-shrink: 0;
+    
+    padding: 2px 8px;
+    border-radius: 12px;
+    
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(147, 51, 234, 0.15));
+    color: rgba(59, 130, 246, 1);
+    
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    
+    transition: all 0.15s ease;
+}
+
+.autocomplete-item:hover .autocomplete-badge,
+.autocomplete-item.selected .autocomplete-badge {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(147, 51, 234, 0.25));
+    color: rgba(29, 78, 216, 1);
+    transform: scale(1.05);
+}
+
+/* Empty state */
+.autocomplete-empty {
+    padding: 24px 16px;
+    text-align: center;
+    color: rgba(148, 163, 184, 1);
+    font-size: 14px;
+    font-style: italic;
+}
+
+/* Loading state */
+.autocomplete-loading {
+    padding: 16px;
+    text-align: center;
+    color: rgba(100, 116, 139, 1);
+    font-size: 13px;
+}
+
+.autocomplete-loading::after {
+    content: '...';
+    animation: autocomplete-dots 1.5s steps(4, end) infinite;
+}
+
+@keyframes autocomplete-dots {
+    0%, 20% { content: '.'; }
+    40% { content: '..'; }
+    60%, 100% { content: '...'; }
+}
+
+/* Input field enhancement */
+input.has-autocomplete {
+    position: relative;
+}
+
+input.has-autocomplete:focus {
+    border-color: rgba(59, 130, 246, 0.5);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Keyboard navigation indicator */
+.autocomplete-item.selected::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: linear-gradient(180deg, rgba(59, 130, 246, 1), rgba(147, 51, 234, 1));
+    border-radius: 0 2px 2px 0;
+}
+
+/* Dark mode support (optional) */
+@media (prefers-color-scheme: dark) {
+    .autocomplete-suggestions {
+        background: rgba(30, 41, 59, 1);
+        border-color: rgba(51, 65, 85, 1);
+    }
+    
+    .autocomplete-item {
+        color: rgba(226, 232, 240, 1);
+        border-bottom-color: rgba(51, 65, 85, 0.5);
+    }
+    
+    .autocomplete-item:hover,
+    .autocomplete-item.selected {
+        background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(147, 51, 234, 0.15));
+        color: rgba(191, 219, 254, 1);
+    }
+    
+    .autocomplete-suggestions::-webkit-scrollbar-track {
+        background: rgba(51, 65, 85, 0.3);
+    }
+    
+    .autocomplete-suggestions::-webkit-scrollbar-thumb {
+        background: rgba(100, 116, 139, 0.5);
+    }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .autocomplete-suggestions {
+        max-height: 240px;
+    }
+    
+    .autocomplete-item {
+        padding: 10px 12px;
+        font-size: 13px;
+    }
+    
+    .autocomplete-badge {
+        font-size: 10px;
+        padding: 2px 6px;
+    }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .autocomplete-suggestions {
+        border: 2px solid currentColor;
+    }
+    
+    .autocomplete-item:hover,
+    .autocomplete-item.selected {
+        outline: 2px solid currentColor;
+        outline-offset: -2px;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    .autocomplete-suggestions {
+        animation: none;
+    }
+    
+    .autocomplete-item {
+        transition: none;
+    }
+    
+    .autocomplete-badge {
+        transition: none;
+    }
+}
