@@ -1,0 +1,15 @@
+Database server
+Server: Localhost via UNIX socket
+Server type: MySQL
+Server connection: SSL is not being used Documentation
+Server version: 8.0.45-0ubuntu0.24.04.1 - (Ubuntu)
+Protocol version: 10
+User: partpulse_user@localhost
+Server charset: UTF-8 Unicode (utf8mb4)
+Web server
+nginx/1.24.0
+Database client version: libmysql - mysqlnd 8.3.6
+PHP extension: mysqli Documentation curl Documentation mbstring Documentation sodium Documentation
+PHP version: 8.3.6
+phpMyAdmin
+Version information: 5.2.1deb3
