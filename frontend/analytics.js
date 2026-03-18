@@ -1134,4 +1134,34 @@
 
     // Export module
     window.AnalyticsModule = { init: init, refresh: refresh };
+
+        // ── World-Class Upgrade: Wire in Insights + Forecasting ──────────────
+
+    async function loadInsightsAndForecast(data) {
+        // Insights Panel
+        if (window.AnalyticsInsights && document.getElementById('analyticsInsightsPanel')) {
+            const insights = await window.AnalyticsInsights.generateInsights(data);
+            window.AnalyticsInsights.renderInsightsPanel(insights, 'analyticsInsightsPanel');
+        }
+        // Forecast Panel
+        if (window.AnalyticsForecasting && data.spendOverTime && data.spendOverTime.length >= 3) {
+            window.AnalyticsForecasting.renderForecastPanel(data.spendOverTime, 'analyticsForecastPanel');
+            if (document.getElementById('chartForecast')) {
+                window.AnalyticsForecasting.renderForecastChart(data.spendOverTime, 'chartForecast', chartsRegistry);
+            }
+        }
+    }
+
+    // Patch into existing render flow
+    const _origLoadData = typeof loadData === 'function' ? loadData : null;
+    if (_origLoadData) {
+        const __patched = async function() {
+            await _origLoadData.apply(this, arguments);
+            if (lastData && Object.keys(lastData).length > 0) {
+                await loadInsightsAndForecast(lastData);
+            }
+        };
+        window.AnalyticsModule && (window.AnalyticsModule.refresh = __patched);
+    }
+
 })();
