@@ -819,3 +819,352 @@
     font-size: 0.8rem;
     line-height: 1.3;
 }
+
+/* ============================================================
+   v5 WORLD-CLASS TRANSFORMATION — New Styles
+   ============================================================ */
+
+/* KPI hover lift */
+.kpi-card--hoverable {
+    transition: transform 0.25s cubic-bezier(0.16,1,0.3,1), box-shadow 0.25s cubic-bezier(0.16,1,0.3,1), border-color 0.25s;
+    cursor: default;
+}
+.kpi-card--hoverable:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 32px rgba(56,189,248,0.18);
+    border-color: var(--color-accent);
+}
+/* Trend badge */
+.kpi-trend-badge {
+    display: inline-block;
+    margin-top: 0.5rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    letter-spacing: 0.02em;
+}
+/* KPI value animation starting from 0 */
+.kpi-value {
+    transition: none;
+}
+
+/* Chart card entrance */
+@keyframes chartFadeIn {
+    from { opacity: 0; transform: translateY(8px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.chart-card {
+    animation: chartFadeIn 0.4s cubic-bezier(0.16,1,0.3,1) both;
+}
+.charts-grid .chart-card:nth-child(1) { animation-delay: 0.05s; }
+.charts-grid .chart-card:nth-child(2) { animation-delay: 0.12s; }
+
+/* Skeleton shimmer */
+.analytics-skeleton {
+    position: relative;
+    overflow: hidden;
+    background: var(--color-bg-elevated) !important;
+    border-color: transparent !important;
+}
+.analytics-skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(148,163,184,0.07) 40%,
+        rgba(148,163,184,0.13) 50%,
+        rgba(148,163,184,0.07) 60%,
+        transparent 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.6s infinite;
+}
+@keyframes shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* Refresh control */
+.analytics-refresh-ctrl {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.analytics-refresh-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-bg-elevated);
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all 0.15s;
+}
+.analytics-refresh-btn:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+}
+.analytics-refresh-btn.spinning .refresh-icon {
+    animation: spin360 0.7s linear infinite;
+}
+@keyframes spin360 {
+    to { transform: rotate(360deg); }
+}
+.analytics-last-updated {
+    font-size: 0.72rem;
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+}
+
+/* Drill-down scrollable supplier chips */
+.drill-chips-scroll {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    max-height: 80px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+/* Drill order ID button */
+.drill-order-id-btn {
+    background: transparent;
+    border: none;
+    color: var(--color-accent);
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 0.82rem;
+    padding: 0.1rem 0.3rem;
+    border-radius: 4px;
+    transition: background 0.12s;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.drill-order-id-btn:hover {
+    background: var(--color-accent-soft, rgba(56,189,248,0.1));
+}
+
+/* Top Parts ranked list */
+.top-parts-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.75rem;
+    flex-wrap: wrap;
+}
+.top-parts-search {
+    flex: 1;
+    min-width: 180px;
+    max-width: 300px;
+    padding: 0.4rem 0.75rem;
+    background: var(--color-bg-primary);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    color: var(--color-text-primary);
+    font-size: 0.85rem;
+    outline: none;
+    transition: border-color 0.15s;
+}
+.top-parts-search:focus { border-color: var(--color-accent); }
+.top-parts-limit {
+    padding: 0.4rem 0.6rem;
+    background: var(--color-bg-primary);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    color: var(--color-text-primary);
+    font-size: 0.82rem;
+    cursor: pointer;
+}
+.top-parts-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+.top-part-card {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 0.75rem 1rem;
+    background: var(--color-bg-primary);
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+}
+.top-part-card:hover {
+    border-color: var(--color-accent);
+    background: var(--color-bg-elevated);
+}
+.top-part-rank {
+    font-size: 1.1rem;
+    font-weight: 800;
+    min-width: 28px;
+    text-align: center;
+    flex-shrink: 0;
+}
+.top-part-info {
+    flex: 1;
+    min-width: 0;
+}
+.top-part-name {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 0.4rem;
+}
+.top-part-bars { display: flex; flex-direction: column; gap: 0.25rem; }
+.top-part-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+.top-part-bar-label {
+    font-size: 0.65rem;
+    color: var(--color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    min-width: 58px;
+    flex-shrink: 0;
+}
+.top-part-bar-track {
+    flex: 1;
+    height: 5px;
+    background: rgba(148,163,184,0.12);
+    border-radius: 3px;
+    overflow: hidden;
+}
+.top-part-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.5s cubic-bezier(0.16,1,0.3,1);
+}
+.top-part-bar-freq { background: #38bdf8; }
+.top-part-bar-spend { background: #22c55e; }
+.top-part-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    align-items: flex-end;
+    flex-shrink: 0;
+    min-width: 110px;
+}
+.top-part-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+.stat-val {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--color-text-primary);
+}
+.stat-key {
+    font-size: 0.65rem;
+    color: var(--color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+/* Forecast note */
+.forecast-note {
+    font-size: 0.75rem;
+    color: var(--color-text-secondary);
+    text-align: right;
+    margin-top: 0.4rem;
+    font-style: italic;
+}
+
+/* Anomaly detection banner */
+.analytics-anomaly-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.65rem 1rem;
+    background: rgba(234,179,8,0.12);
+    border: 1px solid rgba(234,179,8,0.35);
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    font-size: 0.85rem;
+    color: #fef08a;
+    flex-wrap: wrap;
+}
+.anomaly-dismiss {
+    margin-left: auto;
+    padding: 0.2rem 0.6rem;
+    border: 1px solid rgba(234,179,8,0.5);
+    border-radius: 4px;
+    background: transparent;
+    color: #fef08a;
+    cursor: pointer;
+    font-size: 0.75rem;
+}
+.anomaly-dismiss:hover { background: rgba(234,179,8,0.2); }
+
+/* Customize panel */
+.analytics-customize-panel {
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+}
+.analytics-customize-panel.hidden { display: none; }
+.customize-panel-inner {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    font-size: 0.82rem;
+}
+.customize-panel-inner strong {
+    color: var(--color-text-secondary);
+    text-transform: uppercase;
+    font-size: 0.72rem;
+    letter-spacing: 0.05em;
+    margin-right: 0.5rem;
+}
+.customize-panel-inner label {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: var(--color-text-primary);
+    cursor: pointer;
+    white-space: nowrap;
+}
+.customize-panel-inner input[type=checkbox] {
+    accent-color: var(--color-accent);
+    cursor: pointer;
+}
+
+/* Chart card header with download button */
+.chart-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+.chart-card-header h3 {
+    margin-bottom: 0;
+}
+.chart-download-btn {
+    padding: 0.2rem 0.5rem;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    font-size: 0.75rem;
+    transition: all 0.12s;
+    flex-shrink: 0;
+}
+.chart-download-btn:hover {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+}

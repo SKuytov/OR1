@@ -28,6 +28,10 @@
     let lastData = {};
     let currentDrillData = [];
     let drillFilters = { status: '', supplier: '', building: '' };
+    let lastRefreshTime = null;
+    let comparisonMode = false;
+    var _apiCache = {};
+    var _apiCacheTTL = 5 * 60 * 1000; // 5 minutes
 
     function getMonthsParam() {
         switch (currentPeriod) {
@@ -56,13 +60,18 @@
     }
 
     async function apiFetch(endpoint, params) {
-        const url = (typeof API_BASE !== 'undefined' ? API_BASE : '/api') + '/analytics/' + endpoint + buildQuery(params);
-        const token = typeof authToken !== 'undefined' ? authToken : localStorage.getItem('token');
-        const resp = await fetch(url, {
-            headers: { 'Authorization': 'Bearer ' + token }
-        });
+        var url = (typeof API_BASE !== 'undefined' ? API_BASE : '/api') + '/analytics/' + endpoint + buildQuery(params);
+        var token = typeof authToken !== 'undefined' ? authToken : localStorage.getItem('token');
+        var cacheKey = url;
+        var cached = _apiCache[cacheKey];
+        if (cached && (Date.now() - cached.ts < _apiCacheTTL)) {
+            return cached.data;
+        }
+        var resp = await fetch(url, { headers: { 'Authorization': 'Bearer ' + token } });
         if (!resp.ok) throw new Error('API error: ' + resp.status);
-        return resp.json();
+        var data = await resp.json();
+        _apiCache[cacheKey] = { data: data, ts: Date.now() };
+        return data;
     }
 
     function fmtMoney(val) {
@@ -108,7 +117,20 @@
     function showLoading() {
         const c = getContainer();
         if (!c) return;
-        c.innerHTML = '<div class="analytics-loading"><div class="spinner"></div><div>Loading analytics...</div></div>';
+        c.innerHTML = `
+        <div class="analytics-container">
+            <div class="kpi-grid">
+                ${Array(6).fill('<div class="kpi-card analytics-skeleton" style="height:100px;"></div>').join('')}
+            </div>
+            <div class="charts-grid">
+                <div class="chart-card analytics-skeleton" style="height:280px;"></div>
+                <div class="chart-card analytics-skeleton" style="height:280px;"></div>
+            </div>
+            <div class="charts-grid">
+                <div class="chart-card analytics-skeleton" style="height:240px;"></div>
+                <div class="chart-card analytics-skeleton" style="height:240px;"></div>
+            </div>
+        </div>`;
     }
 
     function showError(msg) {
@@ -130,6 +152,39 @@
         if (currentPeriod === 'year') return 'This Year';
         if (currentPeriod === 'custom') return (customDateFrom || '') + ' to ' + (customDateTo || '');
         return 'All Time';
+    }
+
+    // ── Widget Preferences (Customize Panel) ─────────────────
+    function loadWidgetPrefs() {
+        try { return JSON.parse(localStorage.getItem('analyticsWidgetPrefs') || '{}'); } catch(e) { return {}; }
+    }
+    function saveWidgetPrefs(prefs) {
+        try { localStorage.setItem('analyticsWidgetPrefs', JSON.stringify(prefs)); } catch(e) {}
+    }
+
+    function applyWidgetVisibility() {
+        var prefs = loadWidgetPrefs();
+        document.querySelectorAll('#analyticsCustomizePanel input[type=checkbox]').forEach(function(cb) {
+            var key = cb.dataset.widget;
+            var visible = prefs[key] !== false; // default true
+            cb.checked = visible;
+            var targetEl = findWidgetEl(key);
+            if (targetEl) targetEl.style.display = visible ? '' : 'none';
+        });
+    }
+
+    function findWidgetEl(key) {
+        var map = {
+            'spendOverTime': document.getElementById('chartSpendOverTime')?.closest('.chart-card'),
+            'forecastCard': document.getElementById('forecastCard'),
+            'orderStatus': document.getElementById('chartOrderStatus')?.closest('.chart-card'),
+            'spendBuilding': document.getElementById('chartSpendBuilding')?.closest('.chart-card'),
+            'spendSupplier': document.getElementById('chartSpendSupplier')?.closest('.chart-card'),
+            'categorySection': document.querySelector('.chart-card.full-width'),
+            'supplierPerfTableWrapper': document.getElementById('supplierPerfTableWrapper'),
+            'topPartsTableWrapper': document.getElementById('topPartsTableWrapper')
+        };
+        return map[key] || null;
     }
 
     // ── Drill-Down Modal ──────────────────────────────────────
@@ -210,7 +265,7 @@
             const total = parseFloat(o.totalPrice);
             const unit = parseFloat(o.unitPrice);
             html += '<tr>' +
-                '<td style="color:var(--color-accent);font-weight:600;">' + o.id + '</td>' +
+                '<td><button class="drill-order-id-btn" data-order-id="' + o.id + '">#' + o.id + '</button></td>' +
                 '<td class="drill-item-col" title="' + esc(o.itemDescription) + '">' + esc(o.itemDescription) + '</td>' +
                 '<td>' + esc(o.building) + '</td>' +
                 '<td>' + esc(o.costCenterName) + '</td>' +
@@ -286,11 +341,12 @@
             }
 
             if (uniqueSuppliers.length > 1) {
-                html += '<div class="drill-filter-group"><span class="drill-filter-label">Supplier:</span>';
-                uniqueSuppliers.slice(0, 8).forEach(function(s) {
+                html += '<div class="drill-filter-group"><span class="drill-filter-label">Supplier:</span><div class="drill-chips-scroll">';
+                uniqueSuppliers.forEach(function(s) {
                     var active = drillFilters.supplier === s;
                     html += '<button class="drill-chip' + (active ? ' active' : '') + '" data-filter-type="supplier" data-filter-val="' + esc(s) + '">' + esc(s) + '</button>';
                 });
+                html += '</div>';
                 if (drillFilters.supplier) html += '<button class="drill-chip-clear" data-filter-type="supplier">\u2715</button>';
                 html += '</div>';
             }
@@ -313,6 +369,21 @@
             btn.addEventListener('click', function() {
                 drillFilters[this.dataset.filterType] = '';
                 renderDrillContent();
+            });
+        });
+
+        // Order ID click -> opens order detail panel
+        bodyEl.querySelectorAll('.drill-order-id-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var orderId = parseInt(this.dataset.orderId);
+                closeDrillDown();
+                var ordersTab = document.querySelector('[data-tab="ordersTab"]');
+                if (ordersTab) ordersTab.click();
+                setTimeout(function() {
+                    if (typeof openOrderDetail === 'function') {
+                        openOrderDetail(orderId);
+                    }
+                }, 200);
             });
         });
     }
@@ -340,21 +411,78 @@
     <button class="export-btn" id="btnExportCSV" title="Export to CSV">📊 CSV</button>
     <button class="export-btn" id="btnExportJSON" title="Export raw JSON">📦 JSON</button>
     <button class="export-btn" id="btnPrintReport" title="Print report">🖨️ Print</button>
+    <button class="export-btn" id="btnToggleComparison" title="Toggle period comparison">📊 Compare</button>
+    <button class="export-btn" id="btnCustomize" title="Customize dashboard">⚙ Customize</button>
 </div>
+                <div class="analytics-refresh-ctrl" id="analyticsRefreshCtrl">
+                    <button class="analytics-refresh-btn" id="analyticsRefreshBtn" title="Refresh data">
+                        <svg class="refresh-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
+                            <polyline points="23 4 23 10 17 10"></polyline>
+                            <polyline points="1 20 1 14 7 14"></polyline>
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                        </svg>
+                        Refresh
+                    </button>
+                    <span class="analytics-last-updated" id="analyticsLastUpdated"></span>
+                </div>
             </div>
             <div id="analyticsCustomRange" class="custom-range-picker" style="${currentPeriod === 'custom' ? '' : 'display:none;'}">
                 <label>From: <input type="date" id="analyticsDateFrom" value="${customDateFrom || ''}"></label>
                 <label>To: <input type="date" id="analyticsDateTo" value="${customDateTo || ''}"></label>
                 <button class="btn-apply-range" id="btnApplyRange">Apply</button>
             </div>
+            <div class="analytics-customize-panel hidden" id="analyticsCustomizePanel">
+                <div class="customize-panel-inner">
+                    <strong>Show/Hide Sections</strong>
+                    <label><input type="checkbox" data-widget="spendOverTime" checked> Spend Over Time</label>
+                    <label><input type="checkbox" data-widget="forecastCard" checked> Spend Forecast</label>
+                    <label><input type="checkbox" data-widget="orderStatus" checked> Orders by Status</label>
+                    <label><input type="checkbox" data-widget="spendBuilding" checked> Spend by Building</label>
+                    <label><input type="checkbox" data-widget="spendSupplier" checked> Top Suppliers</label>
+                    <label><input type="checkbox" data-widget="categorySection" checked> Spend by Category</label>
+                    <label><input type="checkbox" data-widget="supplierPerfTableWrapper" checked> Supplier Performance</label>
+                    <label><input type="checkbox" data-widget="topPartsTableWrapper" checked> Top Parts</label>
+                </div>
+            </div>
             <div class="kpi-grid" id="analyticsKpiGrid"></div>
             <div class="charts-grid">
-                <div class="chart-card" title="Click a bar to see orders"><h3>Spend Over Time</h3><canvas id="chartSpendOverTime"></canvas></div>
-                <div class="chart-card" title="Click a segment to see orders"><h3>Orders by Status</h3><canvas id="chartOrderStatus"></canvas></div>
+                <div class="chart-card" title="Click a bar to see orders">
+                    <div class="chart-card-header">
+                        <h3>Spend Over Time</h3>
+                        <button class="chart-download-btn" data-chart-id="chartSpendOverTime" title="Download chart as PNG">⬇</button>
+                    </div>
+                    <canvas id="chartSpendOverTime"></canvas>
+                </div>
+                <div class="chart-card" title="Click a segment to see orders">
+                    <div class="chart-card-header">
+                        <h3>Orders by Status</h3>
+                        <button class="chart-download-btn" data-chart-id="chartOrderStatus" title="Download chart as PNG">⬇</button>
+                    </div>
+                    <canvas id="chartOrderStatus"></canvas>
+                </div>
             </div>
             <div class="charts-grid">
-                <div class="chart-card" title="Click a bar to see orders"><h3>Spend by Building</h3><canvas id="chartSpendBuilding"></canvas></div>
-                <div class="chart-card" title="Click a bar to see orders"><h3>Top 10 Suppliers</h3><canvas id="chartSpendSupplier"></canvas></div>
+                <div class="chart-card full-width" id="forecastCard">
+                    <h3>📈 Spend Forecast</h3>
+                    <canvas id="chartSpendForecast"></canvas>
+                    <div class="forecast-note" id="forecastNote"></div>
+                </div>
+            </div>
+            <div class="charts-grid">
+                <div class="chart-card" title="Click a bar to see orders">
+                    <div class="chart-card-header">
+                        <h3>Spend by Building</h3>
+                        <button class="chart-download-btn" data-chart-id="chartSpendBuilding" title="Download chart as PNG">⬇</button>
+                    </div>
+                    <canvas id="chartSpendBuilding"></canvas>
+                </div>
+                <div class="chart-card" title="Click a bar to see orders">
+                    <div class="chart-card-header">
+                        <h3>Top 10 Suppliers</h3>
+                        <button class="chart-download-btn" data-chart-id="chartSpendSupplier" title="Download chart as PNG">⬇</button>
+                    </div>
+                    <canvas id="chartSpendSupplier"></canvas>
+                </div>
             </div>
             <div class="charts-grid">
                 <div class="chart-card full-width" title="Click a bar to see orders"><h3>Spend by Category</h3></div>
@@ -367,7 +495,7 @@
                 <h3>Top Ordered Parts</h3>
                 <div id="topPartsTableBody"></div>
             </div>
-        </div> 
+        </div>
             <div class="analytics-table-wrapper" id="topPartsTableWrapper">
                 <h3>Top Ordered Parts</h3>
                 <div id="topPartsTableBody"></div>
@@ -442,6 +570,60 @@ document.getElementById('btnPrintReport')?.addEventListener('click', function() 
     }
 });
 
+        // Comparison toggle binding
+        document.getElementById('btnToggleComparison')?.addEventListener('click', function() {
+            comparisonMode = !comparisonMode;
+            this.classList.toggle('active', comparisonMode);
+            this.textContent = comparisonMode ? '📊 Comparing' : '📊 Compare';
+            if (lastData.spendTime) renderSpendOverTime(lastData.spendTime);
+        });
+
+        // Refresh button binding
+        var refreshBtn = document.getElementById('analyticsRefreshBtn');
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', function() {
+                this.classList.add('spinning');
+                var me = this;
+                loadData().finally(function() {
+                    me.classList.remove('spinning');
+                    lastRefreshTime = Date.now();
+                    var el = document.getElementById('analyticsLastUpdated');
+                    if (el) el.textContent = 'Updated just now';
+                });
+            });
+        }
+
+        // Customize panel binding
+        var btnCustomize = document.getElementById('btnCustomize');
+        if (btnCustomize) {
+            btnCustomize.addEventListener('click', function() {
+                var panel = document.getElementById('analyticsCustomizePanel');
+                if (panel) panel.classList.toggle('hidden');
+            });
+        }
+        document.getElementById('analyticsCustomizePanel')?.addEventListener('change', function(e) {
+            var cb = e.target;
+            if (!cb.matches('input[type=checkbox]')) return;
+            var prefs = loadWidgetPrefs();
+            prefs[cb.dataset.widget] = cb.checked;
+            saveWidgetPrefs(prefs);
+            var el = findWidgetEl(cb.dataset.widget);
+            if (el) el.style.display = cb.checked ? '' : 'none';
+        });
+
+        // Chart PNG download (event delegation)
+        getContainer()?.addEventListener('click', function(e) {
+            var btn = e.target.closest('.chart-download-btn');
+            if (!btn) return;
+            var chartId = btn.dataset.chartId;
+            var canvas = document.getElementById(chartId);
+            if (!canvas) return;
+            var link = document.createElement('a');
+            link.download = 'PartPulse_' + chartId + '_' + new Date().toISOString().slice(0,10) + '.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        });
+
         // Bind modal close events (idempotent)
         document.getElementById('analyticsDrillClose')?.addEventListener('click', closeDrillDown);
         document.getElementById('analyticsDrillBackdrop')?.addEventListener('click', closeDrillDown);
@@ -479,12 +661,30 @@ document.getElementById('btnPrintReport')?.addEventListener('click', function() 
 
             renderKPIs(summary);
             renderSpendOverTime(spendTime);
+            renderSpendForecast(spendTime);
+            detectAndShowAnomalies(spendTime);
             renderOrderStatus(statusDist);
             renderSpendByBuilding(buildingSpend);
             renderSpendBySupplier(supplierSpend);
             renderSpendByCategory(categorySpend);
             renderSupplierPerformance(supplierPerf);
             renderTopParts(topParts);
+            applyWidgetVisibility();
+
+            // Track last refresh time
+            lastRefreshTime = Date.now();
+            var updatedEl = document.getElementById('analyticsLastUpdated');
+            if (updatedEl) {
+                updatedEl.textContent = 'Updated just now';
+                if (!window._analyticsRefreshTimer) {
+                    window._analyticsRefreshTimer = setInterval(function() {
+                        var el2 = document.getElementById('analyticsLastUpdated');
+                        if (!el2) return;
+                        var secs = lastRefreshTime ? Math.round((Date.now() - lastRefreshTime) / 1000) : 0;
+                        el2.textContent = secs < 60 ? 'Updated just now' : secs < 3600 ? `Updated ${Math.floor(secs/60)}m ago` : `Updated ${Math.floor(secs/3600)}h ago`;
+                    }, 30000);
+                }
+            }
         } catch (err) {
             console.error('Analytics load error:', err);
             showError('Failed to load analytics data. ' + err.message);
@@ -495,21 +695,60 @@ document.getElementById('btnPrintReport')?.addEventListener('click', function() 
         const grid = document.getElementById('analyticsKpiGrid');
         if (!grid) return;
 
+        function trendBadge(current, previous, isLowerBetter) {
+            if (previous == null || previous === 0 || current == null) return '';
+            const pct = ((current - previous) / previous * 100);
+            const isUp = pct > 0;
+            const isGood = isLowerBetter ? !isUp : isUp;
+            const arrow = isUp ? '▲' : '▼';
+            const color = isGood ? '#22c55e' : '#ef4444';
+            const bg = isGood ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)';
+            return `<div class="kpi-trend-badge" style="color:${color};background:${bg};">${arrow} ${Math.abs(pct).toFixed(1)}% vs prev</div>`;
+        }
+
+        const prev = d.previousPeriod || {};
         const cards = [
-            { icon: '\u{1F4B0}', value: fmtMoney(d.totalSpend), label: 'Total Spend' },
-            { icon: '\u{1F4E6}', value: fmtNum(d.totalOrders), label: 'Total Orders' },
-            { icon: '\u{1F4CA}', value: fmtMoney(d.avgOrderValue), label: 'Avg Order Value' },
-            { icon: '\u{23F1}', value: (parseFloat(d.avgLeadTimeDays) || 0).toFixed(1) + 'd', label: 'Avg Lead Time' },
-            { icon: '\u{2705}', value: fmtPct(d.deliveryRate), label: 'Delivery Rate' },
-            { icon: '\u{1F504}', value: fmtNum(d.ordersInProgress), label: 'In Progress' }
+            { icon: '💰', rawVal: parseFloat(d.totalSpend)||0, value: fmtMoney(d.totalSpend), label: 'Total Spend', trend: trendBadge(parseFloat(d.totalSpend), prev.totalSpend, false), isFloat: true },
+            { icon: '📦', rawVal: parseInt(d.totalOrders)||0, value: fmtNum(d.totalOrders), label: 'Total Orders', trend: trendBadge(parseInt(d.totalOrders), prev.totalOrders, false), isFloat: false },
+            { icon: '📊', rawVal: parseFloat(d.avgOrderValue)||0, value: fmtMoney(d.avgOrderValue), label: 'Avg Order Value', trend: trendBadge(parseFloat(d.avgOrderValue), prev.avgOrderValue, false), isFloat: true },
+            { icon: '⏱', rawVal: parseFloat(d.avgLeadTimeDays)||0, value: (parseFloat(d.avgLeadTimeDays)||0).toFixed(1)+'d', label: 'Avg Lead Time', trend: '', isFloat: true },
+            { icon: '✅', rawVal: parseFloat(d.deliveryRate)||0, value: fmtPct(d.deliveryRate), label: 'Delivery Rate', trend: '', isFloat: true },
+            { icon: '🔄', rawVal: parseInt(d.ordersInProgress)||0, value: fmtNum(d.ordersInProgress), label: 'In Progress', trend: '', isFloat: false }
         ];
 
-        grid.innerHTML = cards.map(c => `
-            <div class="kpi-card">
+        grid.innerHTML = cards.map((c, i) => `
+            <div class="kpi-card kpi-card--hoverable">
                 <div class="kpi-icon">${c.icon}</div>
-                <div class="kpi-value">${c.value}</div>
+                <div class="kpi-value" data-target="${c.rawVal}" data-float="${c.isFloat}" data-display="${c.value}">0</div>
                 <div class="kpi-label">${c.label}</div>
+                ${c.trend}
             </div>`).join('');
+
+        // Animate counters
+        grid.querySelectorAll('.kpi-value[data-target]').forEach(function(el) {
+            const target = parseFloat(el.dataset.target) || 0;
+            const isFloat = el.dataset.float === 'true';
+            const displayVal = el.dataset.display;
+            const duration = 900;
+            const start = performance.now();
+            function tick(now) {
+                const elapsed = Math.min(now - start, duration);
+                const progress = elapsed / duration;
+                // easeOutCubic
+                const ease = 1 - Math.pow(1 - progress, 3);
+                const current = target * ease;
+                if (isFloat && target > 100) {
+                    el.textContent = current.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' EUR';
+                } else if (isFloat) {
+                    el.textContent = current.toFixed(1) + (displayVal.includes('%') ? '%' : displayVal.includes('d') ? 'd' : '');
+                } else {
+                    el.textContent = Math.round(current).toLocaleString('de-DE');
+                }
+                if (progress < 1) requestAnimationFrame(tick);
+                else el.textContent = displayVal;
+            }
+            requestAnimationFrame(tick);
+        });
     }
 
     function renderSpendOverTime(data) {
@@ -517,27 +756,52 @@ document.getElementById('btnPrintReport')?.addEventListener('click', function() 
         if (!canvas || typeof Chart === 'undefined') return;
         destroyChart('spendOverTime');
 
+        const ctx2d = canvas.getContext('2d');
+        const gradient = ctx2d.createLinearGradient(0, 0, 0, 320);
+        gradient.addColorStop(0, 'rgba(56,189,248,0.85)');
+        gradient.addColorStop(1, 'rgba(56,189,248,0.2)');
+
+        var datasets = [{
+            label: 'Spend (EUR)',
+            data: data.map(function(d) { return d.total; }),
+            backgroundColor: gradient,
+            borderRadius: 4,
+            maxBarThickness: 40
+        }];
+
+        if (comparisonMode && data.length >= 2) {
+            var compData = [null].concat(data.slice(0, data.length - 1).map(function(d) { return d.total; }));
+            datasets.push({
+                label: 'Prev Period',
+                data: compData,
+                backgroundColor: 'rgba(167,139,250,0.45)',
+                borderRadius: 4,
+                maxBarThickness: 30
+            });
+        }
+
         chartsRegistry['spendOverTime'] = new Chart(canvas, {
             type: 'bar',
             data: {
                 labels: data.map(d => d.period),
-                datasets: [{
-                    label: 'Spend (EUR)',
-                    data: data.map(d => d.total),
-                    backgroundColor: '#38bdf8',
-                    borderRadius: 4,
-                    maxBarThickness: 40
-                }]
+                datasets: datasets
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: true,
+                animation: { duration: 800, easing: 'easeInOutQuart' },
+                interaction: { mode: 'index', intersect: false },
                 plugins: {
-                    legend: { display: false },
+                    legend: { display: comparisonMode },
                     tooltip: {
-                        callbacks: {
-                            label: ctx => fmtMoney(ctx.raw)
-                        }
+                        backgroundColor: 'rgba(15,23,42,0.97)',
+                        titleColor: '#38bdf8',
+                        bodyColor: '#cbd5e1',
+                        borderColor: 'rgba(56,189,248,0.4)',
+                        borderWidth: 1,
+                        padding: 10,
+                        cornerRadius: 8,
+                        callbacks: { label: ctx => '  ' + fmtMoney(ctx.raw) }
                     }
                 },
                 scales: {
@@ -558,6 +822,169 @@ document.getElementById('btnPrintReport')?.addEventListener('click', function() 
                 }
             }
         });
+    }
+
+    function renderSpendForecast(spendTime) {
+        var canvas = document.getElementById('chartSpendForecast');
+        if (!canvas || typeof Chart === 'undefined') return;
+        destroyChart('spendForecast');
+
+        if (!spendTime || spendTime.length < 3) {
+            var note = document.getElementById('forecastNote');
+            if (note) note.textContent = 'Not enough data for forecasting (need at least 3 periods).';
+            return;
+        }
+
+        // Linear regression
+        var n = spendTime.length;
+        var x = spendTime.map(function(_, i) { return i; });
+        var y = spendTime.map(function(d) { return parseFloat(d.total) || 0; });
+        var sumX = x.reduce(function(a, b) { return a + b; }, 0);
+        var sumY = y.reduce(function(a, b) { return a + b; }, 0);
+        var sumXY = x.reduce(function(acc, xi, i) { return acc + xi * y[i]; }, 0);
+        var sumX2 = x.reduce(function(acc, xi) { return acc + xi * xi; }, 0);
+        var slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+        var intercept = (sumY - slope * sumX) / n;
+
+        // R² confidence
+        var meanY = sumY / n;
+        var ssTotal = y.reduce(function(acc, yi) { return acc + Math.pow(yi - meanY, 2); }, 0);
+        var ssRes = y.reduce(function(acc, yi, i) { return acc + Math.pow(yi - (slope * i + intercept), 2); }, 0);
+        var rSquared = ssTotal > 0 ? Math.max(0, 1 - ssRes / ssTotal) : 0;
+
+        // Generate future period labels
+        var lastPeriod = spendTime[spendTime.length - 1].period;
+        function addMonths(periodStr, m) {
+            var parts = periodStr.split('-');
+            var d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1 + m, 1);
+            return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+        }
+        var forecastPeriods = [1, 2, 3].map(function(m) { return addMonths(lastPeriod, m); });
+        var forecastValues = [0, 1, 2].map(function(i) { return Math.max(0, slope * (n + i) + intercept); });
+
+        var allLabels = spendTime.map(function(d) { return d.period; }).concat(forecastPeriods);
+        var actualData = y.concat([null, null, null]);
+        var forecastData = new Array(n - 1).fill(null).concat([y[n - 1]]).concat(forecastValues);
+
+        var ctx2d = canvas.getContext('2d');
+        var gradActual = ctx2d.createLinearGradient(0, 0, 0, 300);
+        gradActual.addColorStop(0, 'rgba(56,189,248,0.7)');
+        gradActual.addColorStop(1, 'rgba(56,189,248,0.1)');
+
+        chartsRegistry['spendForecast'] = new Chart(canvas, {
+            type: 'line',
+            data: {
+                labels: allLabels,
+                datasets: [
+                    {
+                        label: 'Actual Spend',
+                        data: actualData,
+                        borderColor: '#38bdf8',
+                        backgroundColor: gradActual,
+                        borderWidth: 2.5,
+                        tension: 0.3,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        fill: true,
+                        spanGaps: false
+                    },
+                    {
+                        label: 'Forecast',
+                        data: forecastData,
+                        borderColor: '#a78bfa',
+                        backgroundColor: 'rgba(167,139,250,0.08)',
+                        borderWidth: 2,
+                        borderDash: [6, 4],
+                        tension: 0.3,
+                        pointRadius: 5,
+                        pointStyle: 'rectRot',
+                        pointBackgroundColor: '#a78bfa',
+                        fill: false,
+                        spanGaps: false
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                animation: { duration: 900, easing: 'easeInOutQuart' },
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        labels: { color: '#cbd5e1', usePointStyle: true, padding: 12, font: { size: 11 } }
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(15,23,42,0.97)',
+                        titleColor: '#38bdf8',
+                        bodyColor: '#cbd5e1',
+                        borderColor: 'rgba(56,189,248,0.4)',
+                        borderWidth: 1,
+                        padding: 10,
+                        callbacks: { label: function(ctx) { return ctx.dataset.label + ': ' + (ctx.raw != null ? fmtMoney(ctx.raw) : 'N/A'); } }
+                    }
+                },
+                scales: {
+                    x: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { display: false } },
+                    y: {
+                        beginAtZero: false,
+                        ticks: { color: '#94a3b8', callback: function(v) { return v >= 1000 ? (v/1000).toFixed(0)+'k EUR' : v; } },
+                        grid: { color: 'rgba(148,163,184,0.08)' }
+                    }
+                }
+            }
+        });
+
+        var note = document.getElementById('forecastNote');
+        if (note) {
+            note.textContent = 'Linear trend forecast — R² confidence: ' + (rSquared * 100).toFixed(0) + '%. Forecast is indicative only.';
+        }
+    }
+
+    function detectAndShowAnomalies(spendTime) {
+        // Remove existing banner
+        var existing = document.querySelector('.analytics-anomaly-banner');
+        if (existing) existing.remove();
+
+        if (!spendTime || spendTime.length < 4) return;
+        var values = spendTime.map(function(d) { return parseFloat(d.total) || 0; });
+        var n = values.length;
+        var mean = values.reduce(function(a, b) { return a + b; }) / n;
+        var variance = values.reduce(function(acc, v) { return acc + Math.pow(v - mean, 2); }, 0) / n;
+        var stdDev = Math.sqrt(variance);
+        if (stdDev === 0) return;
+
+        var threshold = 2.0;
+        var anomalies = [];
+        values.forEach(function(v, i) {
+            var z = Math.abs((v - mean) / stdDev);
+            if (z > threshold) {
+                anomalies.push({
+                    period: spendTime[i].period,
+                    value: v,
+                    direction: v > mean ? 'spike' : 'drop',
+                    pct: Math.abs((v - mean) / mean * 100).toFixed(1)
+                });
+            }
+        });
+
+        if (anomalies.length === 0) return;
+
+        var latest = anomalies[anomalies.length - 1];
+        var icon = latest.direction === 'spike' ? '🚨' : '📉';
+        var msg = latest.direction === 'spike'
+            ? `Spend spike in ${latest.period}: ${latest.pct}% above average (${fmtMoney(latest.value)})`
+            : `Spend drop in ${latest.period}: ${latest.pct}% below average (${fmtMoney(latest.value)})`;
+
+        var banner = document.createElement('div');
+        banner.className = 'analytics-anomaly-banner';
+        banner.innerHTML = icon + ' <strong>Anomaly Detected:</strong> ' + msg +
+            ' <button class="anomaly-dismiss">Dismiss</button>';
+        banner.querySelector('.anomaly-dismiss').addEventListener('click', function() { banner.remove(); });
+
+        var kpiGrid = document.getElementById('analyticsKpiGrid');
+        if (kpiGrid) kpiGrid.parentNode.insertBefore(banner, kpiGrid);
     }
 
     function renderOrderStatus(data) {
@@ -585,6 +1012,13 @@ document.getElementById('btnPrintReport')?.addEventListener('click', function() 
                         labels: { boxWidth: 12, padding: 8, font: { size: 11 } }
                     },
                     tooltip: {
+                        backgroundColor: 'rgba(15,23,42,0.97)',
+                        titleColor: '#38bdf8',
+                        bodyColor: '#cbd5e1',
+                        borderColor: 'rgba(56,189,248,0.4)',
+                        borderWidth: 1,
+                        padding: 10,
+                        cornerRadius: 8,
                         callbacks: {
                             label: ctx => ctx.label + ': ' + ctx.raw + ' (' + fmtPct(data[ctx.dataIndex].percent) + ')'
                         }
@@ -624,6 +1058,13 @@ document.getElementById('btnPrintReport')?.addEventListener('click', function() 
                 plugins: {
                     legend: { display: false },
                     tooltip: {
+                        backgroundColor: 'rgba(15,23,42,0.97)',
+                        titleColor: '#38bdf8',
+                        bodyColor: '#cbd5e1',
+                        borderColor: 'rgba(56,189,248,0.4)',
+                        borderWidth: 1,
+                        padding: 10,
+                        cornerRadius: 8,
                         callbacks: {
                             label: ctx => fmtMoney(ctx.raw) + ' (' + fmtPct(data[ctx.dataIndex].percent) + ')'
                         }
@@ -669,6 +1110,13 @@ document.getElementById('btnPrintReport')?.addEventListener('click', function() 
                 plugins: {
                     legend: { display: false },
                     tooltip: {
+                        backgroundColor: 'rgba(15,23,42,0.97)',
+                        titleColor: '#38bdf8',
+                        bodyColor: '#cbd5e1',
+                        borderColor: 'rgba(56,189,248,0.4)',
+                        borderWidth: 1,
+                        padding: 10,
+                        cornerRadius: 8,
                         callbacks: {
                             label: ctx => fmtMoney(ctx.raw) + ' (' + data[ctx.dataIndex].orderCount + ' orders)'
                         }
@@ -924,240 +1372,409 @@ document.getElementById('btnPrintReport')?.addEventListener('click', function() 
     }
 
     function renderTopParts(data) {
-        const body = document.getElementById('topPartsTableBody');
+        var wrapper = document.getElementById('topPartsTableWrapper');
+        var body = document.getElementById('topPartsTableBody');
         if (!body) return;
 
+        // Add search + limit controls to wrapper header (only once)
+        if (wrapper && !wrapper.querySelector('.top-parts-controls')) {
+            var h3 = wrapper.querySelector('h3');
+            if (h3) {
+                var controls = document.createElement('div');
+                controls.className = 'top-parts-controls';
+                controls.innerHTML =
+                    '<input class="top-parts-search" id="topPartsSearch" placeholder="Search parts..." type="text">' +
+                    '<select class="top-parts-limit" id="topPartsLimit">' +
+                    '<option value="10">Top 10</option>' +
+                    '<option value="20" selected>Top 20</option>' +
+                    '<option value="50">Top 50</option>' +
+                    '<option value="999">All</option>' +
+                    '</select>';
+                h3.parentNode.insertBefore(controls, h3.nextSibling);
+            }
+        }
+
         if (!data || data.length === 0) {
-            body.innerHTML = '<p style="color: var(--color-text-secondary); padding: 1rem;">No parts data available.</p>';
+            body.innerHTML = '<p style="color:var(--color-text-secondary);padding:1rem;">No parts data available.</p>';
             return;
         }
 
-        let html = '<table class="analytics-table"><thead><tr>' +
-            '<th>Part Description</th><th class="text-right">Times Ordered</th>' +
-            '<th class="text-right">Total Qty</th><th class="text-right">Total Spend</th>' +
-            '</tr></thead><tbody>';
+        // Keep full data reference for search/filter
+        wrapper._allPartsData = data;
 
-        data.forEach(p => {
-            html += '<tr style="cursor:pointer;" data-part-desc="' + esc(p.itemDescription) + '">' +
-                '<td>' + esc(p.itemDescription) + '</td>' +
-                '<td class="text-right">' + p.orderCount + '</td>' +
-                '<td class="text-right">' + fmtNum(p.totalQty) + '</td>' +
-                '<td class="text-right">' + fmtMoney(p.totalSpend) + '</td>' +
-                '</tr>';
-        });
+        function renderList(items) {
+            if (!items || items.length === 0) {
+                body.innerHTML = '<p style="color:var(--color-text-secondary);padding:1rem;">No matching parts.</p>';
+                return;
+            }
 
-        html += '</tbody></table>';
-        body.innerHTML = html;
+            var maxOrders = Math.max.apply(null, items.map(function(p) { return p.orderCount || 0; }));
+            var maxSpend  = Math.max.apply(null, items.map(function(p) { return parseFloat(p.totalSpend) || 0; }));
 
-        // Bind click on part rows
-        body.querySelectorAll('tr[data-part-desc]').forEach(function(tr) {
-            tr.addEventListener('click', function() {
-                var desc = this.getAttribute('data-part-desc');
-                openDrillDown('part', desc, 'Reorders \u2014 ' + desc);
+            var rankColors = ['#eab308','#94a3b8','#fb923c']; // gold, silver, bronze
+
+            var html = '<div class="top-parts-list">';
+            items.forEach(function(p, i) {
+                var rank = i + 1;
+                var rankColor = rank <= 3 ? rankColors[rank - 1] : 'var(--color-text-secondary)';
+                var rankLabel = rank <= 3 ? ['🥇','🥈','🥉'][rank-1] : rank;
+                var freqPct = maxOrders > 0 ? (p.orderCount / maxOrders * 100) : 0;
+                var spendPct = maxSpend > 0 ? ((parseFloat(p.totalSpend)||0) / maxSpend * 100) : 0;
+
+                html += '<div class="top-part-card" data-part-desc="' + esc(p.itemDescription) + '">' +
+                    '<div class="top-part-rank" style="color:' + rankColor + ';">' + rankLabel + '</div>' +
+                    '<div class="top-part-info">' +
+                        '<div class="top-part-name" title="' + esc(p.itemDescription) + '">' + esc(p.itemDescription) + '</div>' +
+                        '<div class="top-part-bars">' +
+                            '<div class="top-part-bar-row">' +
+                                '<span class="top-part-bar-label">Frequency</span>' +
+                                '<div class="top-part-bar-track"><div class="top-part-bar-fill top-part-bar-freq" style="width:' + freqPct.toFixed(1) + '%"></div></div>' +
+                            '</div>' +
+                            '<div class="top-part-bar-row">' +
+                                '<span class="top-part-bar-label">Spend</span>' +
+                                '<div class="top-part-bar-track"><div class="top-part-bar-fill top-part-bar-spend" style="width:' + spendPct.toFixed(1) + '%"></div></div>' +
+                            '</div>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="top-part-stats">' +
+                        '<div class="top-part-stat"><span class="stat-val">' + p.orderCount + '</span><span class="stat-key">orders</span></div>' +
+                        '<div class="top-part-stat"><span class="stat-val">' + fmtNum(p.totalQty) + '</span><span class="stat-key">units</span></div>' +
+                        '<div class="top-part-stat"><span class="stat-val">' + fmtMoney(p.totalSpend) + '</span><span class="stat-key">spend</span></div>' +
+                    '</div>' +
+                '</div>';
             });
-        });
+            html += '</div>';
+            body.innerHTML = html;
+
+            body.querySelectorAll('.top-part-card').forEach(function(card) {
+                card.addEventListener('click', function() {
+                    var desc = this.dataset.partDesc;
+                    openDrillDown('part', desc, 'Reorders — ' + desc);
+                });
+            });
+        }
+
+        function applyFilters() {
+            var allData = wrapper._allPartsData || [];
+            var search = (document.getElementById('topPartsSearch')?.value || '').toLowerCase().trim();
+            var limitEl = document.getElementById('topPartsLimit');
+            var limit = limitEl ? parseInt(limitEl.value) : 20;
+            var filtered = allData;
+            if (search) {
+                filtered = filtered.filter(function(p) {
+                    return (p.itemDescription||'').toLowerCase().includes(search);
+                });
+            }
+            renderList(filtered.slice(0, limit));
+        }
+
+        renderList(data.slice(0, 20));
+
+        // Bind search and limit
+        var searchEl = document.getElementById('topPartsSearch');
+        var limitEl  = document.getElementById('topPartsLimit');
+        if (searchEl) { searchEl.removeEventListener('input', searchEl._handler); searchEl._handler = applyFilters; searchEl.addEventListener('input', applyFilters); }
+        if (limitEl)  { limitEl.removeEventListener('change', limitEl._handler); limitEl._handler = applyFilters; limitEl.addEventListener('change', applyFilters); }
     }
 
     function exportToXLSX() {
         if (typeof XLSX === 'undefined') { alert('Excel export library not loaded.'); return; }
         var wb = XLSX.utils.book_new();
 
-        var summarySheet = XLSX.utils.aoa_to_sheet([
+        function setColWidths(ws, widths) {
+            ws['!cols'] = widths.map(function(w) { return { wch: w }; });
+        }
+
+        // Summary
+        var summaryData = [
             ['PartPulse Analytics Report'],
             ['Generated:', new Date().toLocaleString()],
             ['Period:', getPeriodLabel()],
             [],
             ['KPI', 'Value'],
-            ['Total Spend (EUR)', lastData.summary?.totalSpend || 0],
-            ['Total Orders', lastData.summary?.totalOrders || 0],
-            ['Avg Order Value (EUR)', lastData.summary?.avgOrderValue || 0],
-            ['Avg Lead Time (days)', lastData.summary?.avgLeadTimeDays || 0],
-            ['Delivery Rate (%)', lastData.summary?.deliveryRate || 0],
-            ['Orders In Progress', lastData.summary?.ordersInProgress || 0],
-        ]);
+            ['Total Spend (EUR)', parseFloat(lastData.summary?.totalSpend) || 0],
+            ['Total Orders', parseInt(lastData.summary?.totalOrders) || 0],
+            ['Avg Order Value (EUR)', parseFloat(lastData.summary?.avgOrderValue) || 0],
+            ['Avg Lead Time (days)', parseFloat(lastData.summary?.avgLeadTimeDays) || 0],
+            ['Delivery Rate (%)', parseFloat(lastData.summary?.deliveryRate) || 0],
+            ['Orders In Progress', parseInt(lastData.summary?.ordersInProgress) || 0]
+        ];
+        var summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
+        setColWidths(summarySheet, [30, 22]);
         XLSX.utils.book_append_sheet(wb, summarySheet, 'Summary');
 
         if (lastData.spendTime?.length) {
             var rows = [['Month', 'Total Spend (EUR)', 'Order Count']];
-            lastData.spendTime.forEach(function(r) { rows.push([r.period, r.total, r.count]); });
-            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Spend Over Time');
+            lastData.spendTime.forEach(function(r) { rows.push([r.period, parseFloat(r.total)||0, parseInt(r.count)||0]); });
+            var ws = XLSX.utils.aoa_to_sheet(rows);
+            setColWidths(ws, [14, 20, 14]);
+            XLSX.utils.book_append_sheet(wb, ws, 'Spend Over Time');
         }
 
         if (lastData.statusDist?.length) {
             var rows = [['Status', 'Count', '% of Total']];
-            lastData.statusDist.forEach(function(r) { rows.push([r.status, r.count, r.percent]); });
-            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Orders by Status');
+            lastData.statusDist.forEach(function(r) { rows.push([r.status, parseInt(r.count)||0, parseFloat(r.percent)||0]); });
+            var ws = XLSX.utils.aoa_to_sheet(rows);
+            setColWidths(ws, [28, 10, 14]);
+            XLSX.utils.book_append_sheet(wb, ws, 'Orders by Status');
         }
 
         if (lastData.buildingSpend?.length) {
             var rows = [['Building Code', 'Building Name', 'Total Spend (EUR)', 'Orders', '% of Total']];
-            lastData.buildingSpend.forEach(function(r) { rows.push([r.building, r.buildingName, r.total, r.count, r.percent]); });
-            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Spend by Building');
+            lastData.buildingSpend.forEach(function(r) { rows.push([r.building, r.buildingName, parseFloat(r.total)||0, parseInt(r.count)||0, parseFloat(r.percent)||0]); });
+            var ws = XLSX.utils.aoa_to_sheet(rows);
+            setColWidths(ws, [16, 24, 20, 10, 14]);
+            XLSX.utils.book_append_sheet(wb, ws, 'Spend by Building');
         }
 
         if (lastData.supplierSpend?.length) {
             var rows = [['Supplier', 'Total Spend (EUR)', 'Orders', 'Avg Value (EUR)']];
-            lastData.supplierSpend.forEach(function(r) { rows.push([r.supplierName, r.total, r.orderCount, r.avgValue]); });
-            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Top Suppliers');
+            lastData.supplierSpend.forEach(function(r) { rows.push([r.supplierName, parseFloat(r.total)||0, parseInt(r.orderCount)||0, parseFloat(r.avgValue)||0]); });
+            var ws = XLSX.utils.aoa_to_sheet(rows);
+            setColWidths(ws, [36, 20, 10, 20]);
+            XLSX.utils.book_append_sheet(wb, ws, 'Top Suppliers');
         }
 
         if (lastData.categorySpend?.length) {
             var rows = [['Category', 'Total Spend (EUR)', 'Orders', '% of Total']];
-            lastData.categorySpend.forEach(function(r) { rows.push([r.category, r.total, r.count, r.percent]); });
-            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Spend by Category');
+            lastData.categorySpend.forEach(function(r) { rows.push([r.category||'(Uncategorized)', parseFloat(r.total)||0, parseInt(r.count)||0, parseFloat(r.percent)||0]); });
+            var ws = XLSX.utils.aoa_to_sheet(rows);
+            setColWidths(ws, [32, 20, 10, 14]);
+            XLSX.utils.book_append_sheet(wb, ws, 'Spend by Category');
         }
 
         if (lastData.supplierPerf?.length) {
             var rows = [['Supplier', 'Total Orders', 'Delivered', 'On-Time Rate (%)', 'Avg Lead Days', 'Total Spend (EUR)']];
-            lastData.supplierPerf.forEach(function(r) { rows.push([r.supplierName, r.totalOrders, r.delivered, r.onTimeRate, r.avgLeadDays, r.totalSpend]); });
-            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Supplier Performance');
+            lastData.supplierPerf.forEach(function(r) { rows.push([r.supplierName, parseInt(r.totalOrders)||0, parseInt(r.delivered)||0, parseFloat(r.onTimeRate)||0, parseFloat(r.avgLeadDays)||0, parseFloat(r.totalSpend)||0]); });
+            var ws = XLSX.utils.aoa_to_sheet(rows);
+            setColWidths(ws, [36, 14, 12, 18, 16, 20]);
+            XLSX.utils.book_append_sheet(wb, ws, 'Supplier Performance');
         }
 
         if (lastData.topParts?.length) {
             var rows = [['Part Description', 'Times Ordered', 'Total Qty', 'Total Spend (EUR)']];
-            lastData.topParts.forEach(function(r) { rows.push([r.itemDescription, r.orderCount, r.totalQty, r.totalSpend]); });
-            XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Top Parts');
+            lastData.topParts.forEach(function(r) { rows.push([r.itemDescription, parseInt(r.orderCount)||0, parseInt(r.totalQty)||0, parseFloat(r.totalSpend)||0]); });
+            var ws = XLSX.utils.aoa_to_sheet(rows);
+            setColWidths(ws, [60, 14, 12, 20]);
+            XLSX.utils.book_append_sheet(wb, ws, 'Top Parts');
         }
 
-        var filename = 'PartPulse_Analytics_' + getPeriodLabel().replace(/\s+/g, '_') + '_' + new Date().toISOString().slice(0,10) + '.xlsx';
+        var filename = 'PartPulse_Analytics_' + getPeriodLabel().replace(/\s+/g,'_') + '_' + new Date().toISOString().slice(0,10) + '.xlsx';
         XLSX.writeFile(wb, filename);
     }
 
     function exportToPDF() {
         if (typeof jspdf === 'undefined' && typeof window.jspdf === 'undefined') {
-            alert('PDF export library not loaded.'); return;
+            alert('PDF library not loaded.'); return;
         }
         var jsPDF = window.jspdf.jsPDF;
-        var doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+        var doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
-        var darkBg = [2, 6, 23];
-        var accentBlue = [56, 189, 248];
-        var textGray = [229, 231, 235];
-        var mutedGray = [107, 114, 128];
+        var pageW = doc.internal.pageSize.width;   // 210
+        var pageH = doc.internal.pageSize.height;  // 297
+        var margin = 14;
+        var contentW = pageW - margin * 2;
 
-        var y = 15;
-        var pageW = doc.internal.pageSize.width;
+        // Colors
+        var headerBg  = [37, 99, 235];    // blue-600
+        var headerText = [255, 255, 255];
+        var titleColor = [30, 58, 138];   // blue-900
+        var bodyText   = [30, 41, 59];    // slate-800
+        var mutedText  = [100, 116, 139]; // slate-500
+        var rowAlt     = [248, 250, 252]; // slate-50
 
-        // Header
-        doc.setFillColor(darkBg[0], darkBg[1], darkBg[2]);
-        doc.rect(0, 0, pageW, 22, 'F');
-        doc.setFontSize(16);
-        doc.setTextColor(accentBlue[0], accentBlue[1], accentBlue[2]);
-        doc.setFont('helvetica', 'bold');
-        doc.text('PartPulse \u2014 Financial Analytics Report', 15, 14);
-        doc.setFontSize(9);
-        doc.setTextColor(mutedGray[0], mutedGray[1], mutedGray[2]);
-        doc.text('Period: ' + getPeriodLabel() + '   |   Generated: ' + new Date().toLocaleString(), 15, 20);
-        y = 30;
-
-        // KPI row
-        if (lastData.summary) {
-            var kpis = [
-                { label: 'Total Spend', value: fmtMoney(lastData.summary.totalSpend) },
-                { label: 'Orders', value: String(lastData.summary.totalOrders) },
-                { label: 'Avg Value', value: fmtMoney(lastData.summary.avgOrderValue) },
-                { label: 'Lead Time', value: (lastData.summary.avgLeadTimeDays||0).toFixed(1) + 'd' },
-                { label: 'Delivery Rate', value: fmtPct(lastData.summary.deliveryRate) },
-                { label: 'In Progress', value: String(lastData.summary.ordersInProgress) },
-            ];
-            var kpiW = (pageW - 20) / kpis.length;
-            kpis.forEach(function(k, i) {
-                var x = 10 + i * kpiW;
-                doc.setFillColor(30, 41, 59);
-                doc.roundedRect(x, y, kpiW - 3, 18, 2, 2, 'F');
-                doc.setFontSize(7);
-                doc.setTextColor(mutedGray[0], mutedGray[1], mutedGray[2]);
-                doc.text(k.label.toUpperCase(), x + 3, y + 6);
-                doc.setFontSize(10);
-                doc.setTextColor(accentBlue[0], accentBlue[1], accentBlue[2]);
-                doc.setFont('helvetica', 'bold');
-                doc.text(k.value, x + 3, y + 14);
-            });
-            y += 24;
+        function drawPageHeader(pageTitle) {
+            doc.setFillColor(headerBg[0], headerBg[1], headerBg[2]);
+            doc.rect(0, 0, pageW, 16, 'F');
+            doc.setFontSize(11);
+            doc.setTextColor(headerText[0], headerText[1], headerText[2]);
+            doc.setFont('helvetica', 'bold');
+            doc.text('PartPulse Analytics', margin, 10.5);
+            doc.setFontSize(8.5);
+            doc.setFont('helvetica', 'normal');
+            doc.text(pageTitle, pageW - margin, 10.5, { align: 'right' });
         }
 
-        function addTable(title, head, rows, startY) {
-            if (!rows || rows.length === 0) return startY;
+        function drawFooter() {
+            var total = doc.getNumberOfPages();
+            for (var i = 1; i <= total; i++) {
+                doc.setPage(i);
+                doc.setFillColor(248, 250, 252);
+                doc.rect(0, pageH - 10, pageW, 10, 'F');
+                doc.setFontSize(7);
+                doc.setTextColor(mutedText[0], mutedText[1], mutedText[2]);
+                doc.text('PartPulse — Financial Analytics Report  |  Period: ' + getPeriodLabel(), margin, pageH - 4);
+                doc.text('Page ' + i + ' of ' + total, pageW - margin, pageH - 4, { align: 'right' });
+            }
+        }
+
+        function sectionTitle(text, y) {
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(10);
-            doc.setTextColor(accentBlue[0], accentBlue[1], accentBlue[2]);
-            doc.text(title, 10, startY);
-            startY += 4;
+            doc.setTextColor(titleColor[0], titleColor[1], titleColor[2]);
+            doc.text(text, margin, y);
+            doc.setDrawColor(headerBg[0], headerBg[1], headerBg[2]);
+            doc.setLineWidth(0.5);
+            doc.line(margin, y + 1.5, pageW - margin, y + 1.5);
+            return y + 7;
+        }
 
-            doc.autoTable({
+        function lightTable(head, rows, startY, opts) {
+            if (!rows || rows.length === 0) return startY;
+            doc.autoTable(Object.assign({
                 startY: startY,
                 head: [head],
                 body: rows,
-                theme: 'grid',
+                theme: 'striped',
                 styles: {
-                    fontSize: 7.5,
-                    cellPadding: 2,
-                    textColor: [229, 231, 235],
-                    fillColor: [15, 23, 42],
-                    lineColor: [30, 41, 59],
-                    lineWidth: 0.2
+                    fontSize: 8,
+                    cellPadding: 2.5,
+                    textColor: bodyText,
+                    fillColor: [255, 255, 255],
+                    lineColor: [226, 232, 240],
+                    lineWidth: 0.15
                 },
                 headStyles: {
-                    fillColor: [30, 41, 59],
-                    textColor: [148, 163, 184],
+                    fillColor: headerBg,
+                    textColor: [255, 255, 255],
                     fontStyle: 'bold',
-                    fontSize: 7
+                    fontSize: 7.5
                 },
-                alternateRowStyles: { fillColor: [2, 6, 23] },
-                margin: { left: 10, right: 10 }
-            });
+                alternateRowStyles: { fillColor: rowAlt },
+                margin: { left: margin, right: margin },
+                didDrawPage: function(data) { drawPageHeader('Report'); }
+            }, opts || {}));
             return doc.lastAutoTable.finalY + 8;
         }
 
-        if (lastData.spendTime?.length) {
-            y = addTable('Spend Over Time', ['Month', 'Total Spend (EUR)', 'Orders'],
-                lastData.spendTime.map(function(r) { return [r.period, r.total.toFixed(2), r.count]; }), y);
+        // ── PAGE 1: Cover + KPIs ──────────────────────────────────
+        drawPageHeader('Executive Summary');
+        var y = 24;
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(20);
+        doc.setTextColor(titleColor[0], titleColor[1], titleColor[2]);
+        doc.text('Financial Analytics Report', margin, y);
+        y += 8;
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(mutedText[0], mutedText[1], mutedText[2]);
+        doc.text('Period: ' + getPeriodLabel() + '   |   Generated: ' + new Date().toLocaleString('de-DE'), margin, y);
+        y += 10;
+
+        if (lastData.summary) {
+            var kpis = [
+                { label: 'Total Spend', value: fmtMoney(lastData.summary.totalSpend) },
+                { label: 'Total Orders', value: String(lastData.summary.totalOrders) },
+                { label: 'Avg Order Value', value: fmtMoney(lastData.summary.avgOrderValue) },
+                { label: 'Avg Lead Time', value: (lastData.summary.avgLeadTimeDays||0).toFixed(1) + ' days' },
+                { label: 'Delivery Rate', value: fmtPct(lastData.summary.deliveryRate) },
+                { label: 'In Progress', value: String(lastData.summary.ordersInProgress) }
+            ];
+            var cols = 3;
+            var cardW = (contentW - (cols - 1) * 4) / cols;
+            var cardH = 20;
+            kpis.forEach(function(k, i) {
+                var col = i % cols;
+                var row = Math.floor(i / cols);
+                var x = margin + col * (cardW + 4);
+                var cy = y + row * (cardH + 4);
+                doc.setDrawColor(226, 232, 240);
+                doc.setFillColor(248, 250, 252);
+                doc.roundedRect(x, cy, cardW, cardH, 2, 2, 'FD');
+                doc.setFontSize(7);
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(mutedText[0], mutedText[1], mutedText[2]);
+                doc.text(k.label.toUpperCase(), x + 3, cy + 6);
+                doc.setFontSize(10);
+                doc.setFont('helvetica', 'bold');
+                doc.setTextColor(headerBg[0], headerBg[1], headerBg[2]);
+                doc.text(k.value, x + 3, cy + 14);
+            });
+            y += 2 * (cardH + 4) + 8;
         }
 
+        if (lastData.spendTime && lastData.spendTime.length) {
+            y = sectionTitle('Spend Over Time', y);
+            y = lightTable(
+                ['Month', 'Total Spend (EUR)', 'Orders'],
+                lastData.spendTime.map(function(r) { return [r.period, (parseFloat(r.total)||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2}), r.count]; }),
+                y
+            );
+        }
+
+        // ── PAGE 2: Spend by Building + Top Suppliers ─────────────
         doc.addPage();
-        y = 15;
+        drawPageHeader('Spend by Building & Suppliers');
+        y = 24;
 
-        if (lastData.buildingSpend?.length) {
-            y = addTable('Spend by Building', ['Building', 'Name', 'Total Spend (EUR)', 'Orders', '%'],
-                lastData.buildingSpend.map(function(r) { return [r.building, r.buildingName, r.total.toFixed(2), r.count, r.percent + '%']; }), y);
+        if (lastData.buildingSpend && lastData.buildingSpend.length) {
+            y = sectionTitle('Spend by Building', y);
+            y = lightTable(
+                ['Building Code', 'Building Name', 'Total Spend (EUR)', 'Orders', '% of Total'],
+                lastData.buildingSpend.map(function(r) { return [r.building, r.buildingName, (parseFloat(r.total)||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2}), r.count, (r.percent||0).toFixed(1)+'%']; }),
+                y
+            );
         }
 
-        if (lastData.supplierSpend?.length) {
-            y = addTable('Top Suppliers', ['Supplier', 'Total Spend (EUR)', 'Orders', 'Avg Value (EUR)'],
-                lastData.supplierSpend.map(function(r) { return [r.supplierName, r.total.toFixed(2), r.orderCount, r.avgValue.toFixed(2)]; }), y);
+        if (lastData.supplierSpend && lastData.supplierSpend.length) {
+            y = sectionTitle('Top Suppliers by Spend', y);
+            y = lightTable(
+                ['Supplier', 'Total Spend (EUR)', 'Orders', 'Avg Value (EUR)'],
+                lastData.supplierSpend.map(function(r) { return [r.supplierName, (parseFloat(r.total)||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2}), r.orderCount, (parseFloat(r.avgValue)||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})]; }),
+                y
+            );
         }
 
+        // ── PAGE 3: Status + Categories ───────────────────────────
         doc.addPage();
-        y = 15;
+        drawPageHeader('Order Status & Categories');
+        y = 24;
 
-        if (lastData.categorySpend?.length) {
-            y = addTable('Spend by Category', ['Category', 'Total Spend (EUR)', 'Orders', '%'],
-                lastData.categorySpend.map(function(r) { return [r.category, r.total.toFixed(2), r.count, r.percent + '%']; }), y);
+        if (lastData.statusDist && lastData.statusDist.length) {
+            y = sectionTitle('Orders by Status', y);
+            y = lightTable(
+                ['Status', 'Count', '% of Total'],
+                lastData.statusDist.map(function(r) { return [r.status, r.count, (r.percent||0).toFixed(1)+'%']; }),
+                y
+            );
         }
 
-        doc.addPage();
-        y = 15;
+        if (lastData.categorySpend && lastData.categorySpend.length) {
+            y = sectionTitle('Spend by Category', y);
+            y = lightTable(
+                ['Category', 'Total Spend (EUR)', 'Orders', '% of Total'],
+                lastData.categorySpend.map(function(r) { return [r.category || '(Uncategorized)', (parseFloat(r.total)||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2}), r.count, (r.percent||0).toFixed(1)+'%']; }),
+                y
+            );
+        }
 
-        if (lastData.supplierPerf?.length) {
-            y = addTable('Supplier Performance',
+        // ── PAGE 4: Supplier Performance + Top Parts ──────────────
+        doc.addPage();
+        drawPageHeader('Supplier Performance & Top Parts');
+        y = 24;
+
+        if (lastData.supplierPerf && lastData.supplierPerf.length) {
+            y = sectionTitle('Supplier Performance', y);
+            y = lightTable(
                 ['Supplier', 'Orders', 'Delivered', 'On-Time %', 'Avg Lead Days', 'Total Spend (EUR)'],
-                lastData.supplierPerf.map(function(r) { return [r.supplierName, r.totalOrders, r.delivered, r.onTimeRate + '%', r.avgLeadDays.toFixed(1), r.totalSpend.toFixed(2)]; }), y);
+                lastData.supplierPerf.map(function(r) { return [r.supplierName, r.totalOrders, r.delivered, (r.onTimeRate||0).toFixed(1)+'%', (r.avgLeadDays||0).toFixed(1), (parseFloat(r.totalSpend)||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})]; }),
+                y
+            );
         }
 
-        if (lastData.topParts?.length) {
-            y = addTable('Top Ordered Parts', ['Part Description', 'Times Ordered', 'Total Qty', 'Total Spend (EUR)'],
-                lastData.topParts.map(function(r) { return [r.itemDescription.substring(0, 60), r.orderCount, r.totalQty, r.totalSpend.toFixed(2)]; }), y);
+        if (lastData.topParts && lastData.topParts.length) {
+            y = sectionTitle('Top Ordered Parts', y);
+            y = lightTable(
+                ['Part Description', 'Times Ordered', 'Total Qty', 'Total Spend (EUR)'],
+                lastData.topParts.map(function(r) { return [String(r.itemDescription||'').substring(0,70), r.orderCount, r.totalQty, (parseFloat(r.totalSpend)||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})]; }),
+                y
+            );
         }
 
-        var totalPages = doc.getNumberOfPages();
-        for (var i = 1; i <= totalPages; i++) {
-            doc.setPage(i);
-            doc.setFontSize(7);
-            doc.setTextColor(mutedGray[0], mutedGray[1], mutedGray[2]);
-            doc.text('Page ' + i + ' of ' + totalPages + '  |  PartPulse Analytics', pageW / 2, doc.internal.pageSize.height - 5, { align: 'center' });
-        }
+        drawFooter();
 
-        var filename = 'PartPulse_Analytics_' + getPeriodLabel().replace(/[^a-zA-Z0-9]/g, '_') + '_' + new Date().toISOString().slice(0,10) + '.pdf';
+        var filename = 'PartPulse_Analytics_' + getPeriodLabel().replace(/[^a-zA-Z0-9]/g,'_') + '_' + new Date().toISOString().slice(0,10) + '.pdf';
         doc.save(filename);
     }
 
@@ -1170,12 +1787,13 @@ document.getElementById('btnPrintReport')?.addEventListener('click', function() 
     }
 
     function refresh() {
+        _apiCache = {};
         renderSkeleton();
         loadData();
     }
 
     // Export module
-    window.AnalyticsModule = { init: init, refresh: refresh };
+    window.AnalyticsModule = { init: init, refresh: refresh, clearCache: function() { _apiCache = {}; } };
 
         // ── World-Class Upgrade: Wire in Insights + Forecasting ──────────────
 

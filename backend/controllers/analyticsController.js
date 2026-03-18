@@ -28,6 +28,35 @@ exports.getSummary = async (req, res) => {
     try {
         const df = buildDateFilter(req.query);
 
+        // Compute previous period params for comparison
+        let prevDf = { clause: '', params: [] };
+        const { months, dateFrom, dateTo } = req.query;
+        if (months) {
+            const m = parseInt(months);
+            prevDf.clause = ` AND submission_date >= DATE_SUB(NOW(), INTERVAL ? MONTH) AND submission_date < DATE_SUB(NOW(), INTERVAL ? MONTH)`;
+            prevDf.params = [m * 2, m];
+        } else if (dateFrom && dateTo) {
+            const from = new Date(dateFrom);
+            const to = new Date(dateTo);
+            const diff = to - from;
+            const prevTo = new Date(from.getTime() - 1);
+            const prevFrom = new Date(prevTo.getTime() - diff);
+            const fmt = d => d.toISOString().slice(0, 10);
+            prevDf.clause = ` AND submission_date >= ? AND submission_date <= ?`;
+            prevDf.params = [fmt(prevFrom), fmt(prevTo) + ' 23:59:59'];
+        }
+
+        let prevTotalRow = null;
+        if (prevDf.clause) {
+            [[prevTotalRow]] = await db.query(
+                `SELECT COUNT(*) AS totalOrders,
+                 COALESCE(SUM(CASE WHEN total_price > 0 THEN total_price ELSE 0 END),0) AS totalSpend,
+                 COALESCE(AVG(CASE WHEN total_price > 0 THEN total_price ELSE NULL END),0) AS avgOrderValue
+                 FROM orders WHERE 1=1${prevDf.clause}`,
+                prevDf.params
+            );
+        }
+
         const [[totalRow]] = await db.query(
             `SELECT
                 COUNT(*) AS totalOrders,
@@ -77,7 +106,12 @@ exports.getSummary = async (req, res) => {
             topSupplierSpend: topSupplierRows.length > 0 ? parseFloat(topSupplierRows[0].topSupplierSpend) : 0,
             deliveryRate: parseFloat(deliveryRow.deliveryRate),
             cancelledRate: parseFloat(deliveryRow.cancelledRate),
-            ordersInProgress: totalRow.ordersInProgress
+            ordersInProgress: totalRow.ordersInProgress,
+            previousPeriod: {
+                totalOrders: prevTotalRow ? prevTotalRow.totalOrders : null,
+                totalSpend: prevTotalRow ? parseFloat(prevTotalRow.totalSpend) : null,
+                avgOrderValue: prevTotalRow ? parseFloat(prevTotalRow.avgOrderValue) : null,
+            }
         });
     } catch (error) {
         console.error('Analytics summary error:', error);
