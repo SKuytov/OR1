@@ -495,11 +495,6 @@
                 <h3>Top Ordered Parts</h3>
                 <div id="topPartsTableBody"></div>
             </div>
-        </div>
-            <div class="analytics-table-wrapper" id="topPartsTableWrapper">
-                <h3>Top Ordered Parts</h3>
-                <div id="topPartsTableBody"></div>
-            </div>
 
             <!-- 💡 INSIGHTS PANEL -->
             <div class="insights-section">
