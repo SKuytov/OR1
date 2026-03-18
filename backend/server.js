@@ -19,6 +19,7 @@ const documentsRoutes = require('./routes/documents');
 const approvalsRoutes = require('./routes/approvals');
 const autocompleteRoutes = require('./routes/autocomplete');
 const testRoutes = require('./routes/test');
+const analyticsRoutes = require('./routes/analytics');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -53,6 +54,7 @@ app.use('/api/documents', documentsRoutes);
 app.use('/api/approvals', approvalsRoutes);
 app.use('/api/autocomplete', autocompleteRoutes); // ⭐ NEW: Intelligent autocomplete
 app.use('/api/test', testRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
