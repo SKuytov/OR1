@@ -364,6 +364,29 @@
                 <h3>Top Ordered Parts</h3>
                 <div id="topPartsTableBody"></div>
             </div>
+        </div> 
+            <div class="analytics-table-wrapper" id="topPartsTableWrapper">
+                <h3>Top Ordered Parts</h3>
+                <div id="topPartsTableBody"></div>
+            </div>
+
+            <!-- 💡 INSIGHTS PANEL -->
+            <div class="insights-section">
+                <h3>💡 Cost-Saving Insights</h3>
+                <div id="analyticsInsightsPanel">
+                    <div class="analytics-loading"><div class="spinner"></div><div>Analyzing...</div></div>
+                </div>
+            </div>
+
+            <!-- 📈 FORECAST PANEL -->
+            <div class="chart-card" style="margin-bottom:1.25rem;">
+                <h3>📈 3-Month Spend Forecast</h3>
+                <div id="analyticsForecastPanel"></div>
+                <div style="position:relative;height:240px;margin-top:1rem;">
+                    <canvas id="chartForecast"></canvas>
+                </div>
+            </div>
+
         </div>`;
 
         // Bind period filter
