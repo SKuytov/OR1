@@ -335,9 +335,12 @@
                     <button class="period-btn${currentPeriod === 'custom' ? ' active' : ''}" data-period="custom">Custom</button>
                 </div>
                 <div class="analytics-export-btns">
-                    <button class="export-btn" id="btnExportXLSX" title="Export to Excel">\ud83d\udce5 Excel</button>
-                    <button class="export-btn" id="btnExportPDF" title="Export to PDF">\ud83d\udcc4 PDF</button>
-                </div>
+    <button class="export-btn" id="btnExportXLSX" title="Export to Excel">📥 Excel</button>
+    <button class="export-btn" id="btnExportPDF" title="Export to PDF">📄 PDF</button>
+    <button class="export-btn" id="btnExportCSV" title="Export to CSV">📊 CSV</button>
+    <button class="export-btn" id="btnExportJSON" title="Export raw JSON">📦 JSON</button>
+    <button class="export-btn" id="btnPrintReport" title="Print report">🖨️ Print</button>
+</div>
             </div>
             <div id="analyticsCustomRange" class="custom-range-picker" style="${currentPeriod === 'custom' ? '' : 'display:none;'}">
                 <label>From: <input type="date" id="analyticsDateFrom" value="${customDateFrom || ''}"></label>
@@ -364,6 +367,29 @@
                 <h3>Top Ordered Parts</h3>
                 <div id="topPartsTableBody"></div>
             </div>
+        </div> 
+            <div class="analytics-table-wrapper" id="topPartsTableWrapper">
+                <h3>Top Ordered Parts</h3>
+                <div id="topPartsTableBody"></div>
+            </div>
+
+            <!-- 💡 INSIGHTS PANEL -->
+            <div class="insights-section">
+                <h3>💡 Cost-Saving Insights</h3>
+                <div id="analyticsInsightsPanel">
+                    <div class="analytics-loading"><div class="spinner"></div><div>Analyzing...</div></div>
+                </div>
+            </div>
+
+            <!-- 📈 FORECAST PANEL -->
+            <div class="chart-card" style="margin-bottom:1.25rem;">
+                <h3>📈 3-Month Spend Forecast</h3>
+                <div id="analyticsForecastPanel"></div>
+                <div style="position:relative;height:240px;margin-top:1rem;">
+                    <canvas id="chartForecast"></canvas>
+                </div>
+            </div>
+
         </div>`;
 
         // Bind period filter
@@ -399,6 +425,22 @@
         // Bind export buttons
         document.getElementById('btnExportXLSX')?.addEventListener('click', exportToXLSX);
         document.getElementById('btnExportPDF')?.addEventListener('click', exportToPDF);
+// ── New Export Buttons (analytics-export.js) ──
+document.getElementById('btnExportCSV')?.addEventListener('click', function() {
+    if (window.AnalyticsExport && lastData) {
+        window.AnalyticsExport.exportCSV(lastData, getPeriodLabel());
+    }
+});
+document.getElementById('btnExportJSON')?.addEventListener('click', function() {
+    if (window.AnalyticsExport && lastData) {
+        window.AnalyticsExport.exportJSON(lastData, getPeriodLabel());
+    }
+});
+document.getElementById('btnPrintReport')?.addEventListener('click', function() {
+    if (window.AnalyticsExport) {
+        window.AnalyticsExport.printReport(getPeriodLabel());
+    }
+});
 
         // Bind modal close events (idempotent)
         document.getElementById('analyticsDrillClose')?.addEventListener('click', closeDrillDown);
@@ -1134,4 +1176,34 @@
 
     // Export module
     window.AnalyticsModule = { init: init, refresh: refresh };
+
+        // ── World-Class Upgrade: Wire in Insights + Forecasting ──────────────
+
+    async function loadInsightsAndForecast(data) {
+        // Insights Panel
+        if (window.AnalyticsInsights && document.getElementById('analyticsInsightsPanel')) {
+            const insights = await window.AnalyticsInsights.generateInsights(data);
+            window.AnalyticsInsights.renderInsightsPanel(insights, 'analyticsInsightsPanel');
+        }
+        // Forecast Panel
+        if (window.AnalyticsForecasting && data.spendOverTime && data.spendOverTime.length >= 3) {
+            window.AnalyticsForecasting.renderForecastPanel(data.spendOverTime, 'analyticsForecastPanel');
+            if (document.getElementById('chartForecast')) {
+                window.AnalyticsForecasting.renderForecastChart(data.spendOverTime, 'chartForecast', chartsRegistry);
+            }
+        }
+    }
+
+    // Patch into existing render flow
+    const _origLoadData = typeof loadData === 'function' ? loadData : null;
+    if (_origLoadData) {
+        const __patched = async function() {
+            await _origLoadData.apply(this, arguments);
+            if (lastData && Object.keys(lastData).length > 0) {
+                await loadInsightsAndForecast(lastData);
+            }
+        };
+        window.AnalyticsModule && (window.AnalyticsModule.refresh = __patched);
+    }
+
 })();
