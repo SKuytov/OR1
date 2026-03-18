@@ -1180,19 +1180,29 @@ document.getElementById('btnPrintReport')?.addEventListener('click', function() 
         // ── World-Class Upgrade: Wire in Insights + Forecasting ──────────────
 
     async function loadInsightsAndForecast(data) {
-        // Insights Panel
-        if (window.AnalyticsInsights && document.getElementById('analyticsInsightsPanel')) {
-            const insights = await window.AnalyticsInsights.generateInsights(data);
-            window.AnalyticsInsights.renderInsightsPanel(insights, 'analyticsInsightsPanel');
-        }
-        // Forecast Panel
-        if (window.AnalyticsForecasting && data.spendOverTime && data.spendOverTime.length >= 3) {
-            window.AnalyticsForecasting.renderForecastPanel(data.spendOverTime, 'analyticsForecastPanel');
-            if (document.getElementById('chartForecast')) {
-                window.AnalyticsForecasting.renderForecastChart(data.spendOverTime, 'chartForecast', chartsRegistry);
-            }
-        }
+    // Remap lastData keys → what the insight/forecast modules expect
+    const normalized = {
+        bySupplier:          data.supplierSpend  || [],
+        topParts:            data.topParts        || [],
+        spendOverTime:       data.spendTime       || [],
+        supplierPerformance: data.supplierPerf    || [],
+        kpis:                data.summary         || {}
+    };
+
+    // Insights Panel
+    if (window.AnalyticsInsights && document.getElementById('analyticsInsightsPanel')) {
+        const insights = await window.AnalyticsInsights.generateInsights(normalized);
+        window.AnalyticsInsights.renderInsightsPanel(insights, 'analyticsInsightsPanel');
     }
+
+    // Forecast Panel
+    if (window.AnalyticsForecasting && normalized.spendOverTime.length >= 3) {
+        window.AnalyticsForecasting.renderForecastPanel(normalized.spendOverTime, 'analyticsForecastPanel');
+        if (document.getElementById('chartForecast'))
+            window.AnalyticsForecasting.renderForecastChart(normalized.spendOverTime, 'chartForecast', chartsRegistry);
+    }
+}
+
 
     // Patch into existing render flow
     const _origLoadData = typeof loadData === 'function' ? loadData : null;
