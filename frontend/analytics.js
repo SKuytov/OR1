@@ -335,9 +335,12 @@
                     <button class="period-btn${currentPeriod === 'custom' ? ' active' : ''}" data-period="custom">Custom</button>
                 </div>
                 <div class="analytics-export-btns">
-                    <button class="export-btn" id="btnExportXLSX" title="Export to Excel">\ud83d\udce5 Excel</button>
-                    <button class="export-btn" id="btnExportPDF" title="Export to PDF">\ud83d\udcc4 PDF</button>
-                </div>
+    <button class="export-btn" id="btnExportXLSX" title="Export to Excel">📥 Excel</button>
+    <button class="export-btn" id="btnExportPDF" title="Export to PDF">📄 PDF</button>
+    <button class="export-btn" id="btnExportCSV" title="Export to CSV">📊 CSV</button>
+    <button class="export-btn" id="btnExportJSON" title="Export raw JSON">📦 JSON</button>
+    <button class="export-btn" id="btnPrintReport" title="Print report">🖨️ Print</button>
+</div>
             </div>
             <div id="analyticsCustomRange" class="custom-range-picker" style="${currentPeriod === 'custom' ? '' : 'display:none;'}">
                 <label>From: <input type="date" id="analyticsDateFrom" value="${customDateFrom || ''}"></label>
@@ -422,6 +425,22 @@
         // Bind export buttons
         document.getElementById('btnExportXLSX')?.addEventListener('click', exportToXLSX);
         document.getElementById('btnExportPDF')?.addEventListener('click', exportToPDF);
+// ── New Export Buttons (analytics-export.js) ──
+document.getElementById('btnExportCSV')?.addEventListener('click', function() {
+    if (window.AnalyticsExport && lastData) {
+        window.AnalyticsExport.exportCSV(lastData, getPeriodLabel());
+    }
+});
+document.getElementById('btnExportJSON')?.addEventListener('click', function() {
+    if (window.AnalyticsExport && lastData) {
+        window.AnalyticsExport.exportJSON(lastData, getPeriodLabel());
+    }
+});
+document.getElementById('btnPrintReport')?.addEventListener('click', function() {
+    if (window.AnalyticsExport) {
+        window.AnalyticsExport.printReport(getPeriodLabel());
+    }
+});
 
         // Bind modal close events (idempotent)
         document.getElementById('analyticsDrillClose')?.addEventListener('click', closeDrillDown);
